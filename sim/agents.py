@@ -1,4 +1,5 @@
 import numpy as np
+from sim.routing import INF
 
 # Spawns in the agents at random walkable and unblocked locations on the map. Each agent is represented as a dictionary with its current position and assigned exit.
 def spawn_agents(walkable, blocked, exits, n):
@@ -18,48 +19,102 @@ def spawn_agents(walkable, blocked, exits, n):
         })
     return agents
 
-# Updates the agents position by stepping based on the input provided. Intakes the agents, the walkable paths, the block paths, the blocked exits and the distance maps to the exits. The agents will move towards the exit that is closest to them based on the distance maps, while avoiding blocked paths and fire.
-def step_agents(agents, walkable, blocked, exits, dist_maps):
+def step_agents(agents, walkable, blocked, exits, stairs, dist_maps, doors=None, open_doors=None):
+    """
+    doors: set[(r,c)] door cells
+    open_doors: set[(r,c)] doors that have been opened
+    blocked: numpy bool mask of blocked cells (fire + closed doors, etc.)
+    """
+    if doors is None:
+        doors = set()
+    if open_doors is None:
+        open_doors = set()
+
     new_agents = []
     occupied = set()
+    H, W = walkable.shape
 
-    # Assigns the nearest exit to each agent if they don't have one already. 
-    # Loops through all agents
     for a in agents:
-        # Gets agents current row and column position
         r, c = a["pos"]
-        # If they aren't assigned a exit, we assign them the nearest exit based on the distance maps.
+
+        # --- NEW: open any adjacent door (even if the door cell itself is blocked/closed) ---
+        for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            nr, nc = r + dr, c + dc
+            if (nr, nc) in doors and (nr, nc) not in open_doors:
+                open_doors.add((nr, nc))
+
+        # Drop exit assignment if it became unreachable
+        if a["exit"] is not None and dist_maps[a["exit"]][r, c] >= INF:
+            a["exit"] = None
+
+        # Assign nearest reachable exit
         if a["exit"] is None:
-            # Checks every e exit and looks at the agents r and c position relative to the exits using the exits distance.
-            a["exit"] = min(
-                exits,
-                key=lambda e: dist_maps[e][r, c]
-            )
-        # Gets agents current distance to their assigned exit from the distance maps.
+            reachable = [e for e in exits if dist_maps[e][r, c] < INF]
+            if not reachable:
+                # No reachable exit from here (for now) -> stay put
+                new_agents.append(a)
+                continue
+            a["exit"] = min(reachable, key=lambda e: dist_maps[e][r, c])
+
         dist = dist_maps[a["exit"]]
 
-        # calculates the best next position for the agent to move to by looking at the neighboring cells (up, down, left, right) and choosing the one with the smallest distance to the exit that is also walkable and not blocked by fire. 
-        # If the best next position is an exit, we consider the agent evacuated and do not add it to the new_agents list. If the best next position is occupied by another agent, we keep the agent in its current position.
         best = (r, c)
-        best_d = dist[r, c]
+        best_score = dist[r, c]
 
-        # Looping over the 4 neighbors cells checking for next best move
-        for dr, dc in [(1,0),(-1,0),(0,1),(0,-1)]:
-            nr, nc = r+dr, c+dc
-            if 0 <= nr < walkable.shape[0] and 0 <= nc < walkable.shape[1]:
-                if walkable[nr,nc] and not blocked[nr,nc]:
-                    if dist[nr,nc] < best_d:
-                        best = (nr,nc)
-                        best_d = dist[nr,nc]
-        # If agent reaches exit they are removed from the simulation and not added to the new_agents list.
+        # Move to neighbor with strictly better distance (stairs penalized)
+        for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < H and 0 <= nc < W:
+                if walkable[nr, nc] and not blocked[nr, nc]:
+                    score = dist[nr, nc]
+                    if (nr, nc) in stairs:
+                        score += 6
+                    if score < best_score:
+                        best = (nr, nc)
+                        best_score = score
+
+        # Evacuated
         if best in exits:
             continue
 
-        # To avoid agent collision, the agent reserves that cell in occupied and updates the agents position to the best cell. 
+        # Avoid collisions
         if best not in occupied:
             occupied.add(best)
             a["pos"] = best
-        # If not exited, not blocked, and not occupied, we add the agent to the new_agents list to be processed in the next step.
+
         new_agents.append(a)
-    # Returns the list of the agents that have not exited after the movement. 
-    return new_agents
+
+    # Stair cleanup: try snapping agents off stairs onto nearby floor
+    cleaned = []
+    for a in new_agents:
+        if a["pos"] in stairs:
+            snapped = snap_to_nearest_floor(a["pos"], walkable, blocked, stairs)
+            if snapped is not None:
+                a["pos"] = snapped
+            cleaned.append(a)
+        else:
+            cleaned.append(a)
+
+    return cleaned
+
+
+def snap_to_nearest_floor(pos, walkable, blocked, stairs, max_radius=6):
+    r, c = pos
+    H, W = walkable.shape
+
+    if walkable[r, c] and not blocked[r, c] and (r, c) not in stairs:
+        return pos
+
+    for d in range(1, max_radius + 1):
+        for dr in range(-d, d + 1):
+            for dc in range(-d, d + 1):
+                nr, nc = r + dr, c + dc
+                if (
+                    0 <= nr < H
+                    and 0 <= nc < W
+                    and walkable[nr, nc]
+                    and not blocked[nr, nc]
+                    and (nr, nc) not in stairs
+                ):
+                    return (nr, nc)
+    return None
