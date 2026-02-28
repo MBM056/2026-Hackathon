@@ -1,0 +1,85 @@
+PyroPlan
+
+Effective Date: 28 Feb 2026
+
+PyroPlan is developed and owned by:
+
+Ryan Cortes
+
+Maxwell Morrison
+
+Shreyas Nair
+
+Olivia Farro
+
+By downloading, installing, accessing, or using PyroPlan (“Software”), you agree to the terms outlined below.
+
+1. License Grant
+
+We grant you a limited, non-exclusive, non-transferable, revocable license to use PyroPlan for its intended purposes.
+
+This license does not transfer ownership of the Software.
+
+2. Ownership
+
+All rights, title, and interest in PyroPlan — including source code, object code, algorithms, documentation, design, and branding — remain the joint intellectual property of:
+
+Ryan Cortes
+
+Maxwell Morrison
+
+Shreyas Nair
+
+Olivia Farro
+
+All rights not expressly granted are reserved.
+
+3. Restrictions
+
+You may NOT:
+
+Reverse engineer, decompile, or disassemble the Software
+
+Modify or create derivative works without written permission
+
+Redistribute, sublicense, sell, or commercially exploit the Software without authorization
+
+Remove copyright or ownership notices
+
+Use the Software for unlawful or harmful purposes
+
+4. Disclaimer of Warranty
+
+PyroPlan is provided "AS IS", without warranty of any kind, express or implied, including but not limited to:
+
+Merchantability
+
+Fitness for a particular purpose
+
+Non-infringement
+
+We do not guarantee that the Software will be error-free, uninterrupted, or suitable for every use case.
+
+5. Limitation of Liability
+
+To the fullest extent permitted by law, the developers shall not be liable for:
+
+Indirect or consequential damages
+
+Loss of data
+
+Loss of profits
+
+Any damages arising from the use or inability to use the Software
+
+Use PyroPlan at your own risk.
+
+6. Termination
+
+This license automatically terminates if you violate any terms of this Agreement. Upon termination, you must cease all use and delete all copies of the Software.
+
+7. Governing Law
+
+This Agreement shall be governed by the laws of the United States and the applicable state jurisdiction.
+
+By using PyroPlan, you acknowledge that you have read and agree to this EULA.
