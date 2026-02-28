@@ -1,6 +1,6 @@
 from collections import deque
 import numpy as np
-
+"""
 # This class models the fire spreading through the enviroment but this may need to be changed to account for different types of fires spreading.
 # The fire currently starting at inputted positions is not realistic and needs to be changed to account for multiple starting points. 
 class FireModel:
@@ -41,4 +41,51 @@ class FireModel:
                         self.blocked[nr, nc] = True
                         self.front.append((nr, nc))
             # Append to the current list because we need the updated frontier for the next fire spread tick
+            self.front.append((r, c))
+            """
+
+from collections import deque
+import numpy as np
+
+
+class FireModel:
+    def __init__(self, walkable, start, spread_every=2):
+        self.walkable = walkable
+        self.blocked = np.zeros_like(walkable, dtype=bool)
+        self.front = deque()
+        self.spread_every = spread_every
+
+        H, W = walkable.shape
+        sr, sc = start
+
+        best = None
+        best_d = 1e9
+        for r in range(H):
+            for c in range(W):
+                if walkable[r, c]:
+                    d = abs(r - sr) + abs(c - sc)
+                    if d < best_d:
+                        best_d = d
+                        best = (r, c)
+
+        if best:
+            self.blocked[best] = True
+            self.front.append(best)
+
+    def update(self, t):
+        if t % self.spread_every != 0:
+            return
+
+        for _ in range(len(self.front)):
+            r, c = self.front.popleft()
+            for dr, dc in [(1,0),(-1,0),(0,1),(0,-1)]:
+                nr, nc = r + dr, c + dc
+                if (
+                    0 <= nr < self.blocked.shape[0]
+                    and 0 <= nc < self.blocked.shape[1]
+                    and self.walkable[nr, nc]
+                    and not self.blocked[nr, nc]
+                ):
+                    self.blocked[nr, nc] = True
+                    self.front.append((nr, nc))
             self.front.append((r, c))
