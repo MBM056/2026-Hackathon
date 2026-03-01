@@ -22,6 +22,8 @@ def spawn_agents(walkable, blocked, exits, n):
             "pos": candidates[pos],
             "exit": None,
             "alerted": False,
+            "smoke_exposure_seconds": 0.0,
+            "move_cooldown": 0,
         })
     return agents
 
@@ -29,7 +31,9 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
                 doors=None, open_doors=None, fire_smoke=None,
                 fire_mask=None, alarm_active=False, awareness_radius=6,
                 pre_alert_wander_prob=0.20, evac_exits=None,
-                fire_avoid_radius=2, avoid_smoke_cells=True):
+                fire_avoid_radius=2, avoid_smoke_cells=False,
+                smoke_alert_threshold=0.12, smoke_lethal_time_seconds=35.0,
+                smoke_harm_threshold=0.45, step_seconds=0.5):
     if doors is None:
         doors = set()
     if open_doors is None:
@@ -38,11 +42,17 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
         evac_exits = exits
     planner_exits = list(dist_maps.keys())
 
-    # Convert smoke field to a boolean mask
+    # Smoke density field (float32 [0..1]) and derived visible mask.
+    smoke_density = None
     smoke_mask = None
     if fire_smoke is not None:
         try:
-            smoke_mask = fire_smoke if fire_smoke.dtype == np.bool_ else (fire_smoke > 0)
+            if fire_smoke.dtype == np.bool_:
+                smoke_mask = fire_smoke
+                smoke_density = fire_smoke.astype(np.float32)
+            else:
+                smoke_density = np.asarray(fire_smoke, dtype=np.float32)
+                smoke_mask = smoke_density >= smoke_alert_threshold
         except Exception:
             smoke_mask = fire_smoke
 
@@ -54,6 +64,22 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
         r, c = a["pos"]
         if "alerted" not in a:
             a["alerted"] = False
+        if "smoke_exposure_seconds" not in a:
+            a["smoke_exposure_seconds"] = 0.0
+        if "move_cooldown" not in a:
+            a["move_cooldown"] = 0
+
+        # Smoke can be deadly over prolonged exposure:
+        # if inside smoke for >= smoke_lethal_time_seconds, agent dies.
+        # Exposure timer resets immediately when agent escapes smoke.
+        here_density = _smoke_density_at(smoke_density, r, c)
+        if here_density >= smoke_harm_threshold:
+            a["smoke_exposure_seconds"] += float(step_seconds)
+        else:
+            a["smoke_exposure_seconds"] = 0.0
+        if a["smoke_exposure_seconds"] >= smoke_lethal_time_seconds:
+            # Agent dies from prolonged smoke exposure.
+            continue
 
         if alarm_active:
             a["alerted"] = True
@@ -65,6 +91,13 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
             rr, cc = r + dr, c + dc
             if (rr, cc) in doors and (rr, cc) not in open_doors:
                 open_doors.add((rr, cc))
+
+        # Smoke slows movement while inside smoky air.
+        if a["move_cooldown"] > 0:
+            a["move_cooldown"] -= 1
+            occupied.add((r, c))
+            new_agents.append(a)
+            continue
 
         # Stay in place until alerted by local smoke/fire or building alarm.
         if not a["alerted"]:
@@ -128,7 +161,10 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
             best_score = INF
         else:
             best = (r, c)
-            best_score = dist[r, c]
+            current_penalty = 0.0
+            if smoke_density is not None:
+                current_penalty = 10.0 * float(smoke_density[r, c])
+            best_score = dist[r, c] + current_penalty
 
         # Evaluate neighbors
         for dr, dc in NEIGHBORS_8:
@@ -156,9 +192,9 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
             if (nr, nc) in stairs:
                 score += 6
 
-            # Smoke penalty (discourage but allow)
-            if smoke_mask is not None and smoke_mask[nr, nc]:
-                score += 4
+            # Dense smoke is discouraged, but we still allow movement through it.
+            if smoke_density is not None:
+                score += 10.0 * float(smoke_density[nr, nc])
 
             if score < best_score:
                 best = (nr, nc)
@@ -174,6 +210,13 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
         elif best not in occupied:
             occupied.add(best)
             a["pos"] = best
+
+        # Slowdown after standing/moving in smoky cells.
+        rr, cc = a["pos"]
+        dest_density = _smoke_density_at(smoke_density, rr, cc)
+        if dest_density >= 0.15:
+            # Slowdown, but never full immobilization.
+            a["move_cooldown"] = max(a["move_cooldown"], int(dest_density >= 0.55))
 
         new_agents.append(a)
 
@@ -216,6 +259,12 @@ def _is_dangerous_cell(r, c, smoke_mask, fire_mask, H, W, fire_avoid_radius, avo
     c0 = max(0, c - fire_avoid_radius)
     c1 = min(W, c + fire_avoid_radius + 1)
     return bool(np.any(fire_mask[r0:r1, c0:c1]))
+
+
+def _smoke_density_at(smoke_density, r, c):
+    if smoke_density is None:
+        return 0.0
+    return float(np.clip(smoke_density[r, c], 0.0, 1.0))
 
 
 def snap_to_nearest_floor(pos, walkable, blocked, stairs, max_radius=6):
