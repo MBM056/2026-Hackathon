@@ -3,6 +3,9 @@
 PyroPlan is a web-based evacuation simulator for building fire scenarios.
 Users can create or upload floor plans, run evacuation simulations, and compare outcomes across multiple scenarios.
 
+## Live Website
+[PyroPlan](https://hackathon2026-cfbef.web.app/index.html)
+
 ## Features
 
 - Map Editor (paint semantic layers)
@@ -141,5 +144,5 @@ You can manage these with `gcloud run services update ... --env-vars-file env.ya
 
 ## Legal
 
-- See `license.txt` for licensing.
-- See `legal_disclaimer.txt` for legal disclaimer.
+- See [license.txt](https://github.com/MBM056/2026-Hackathon/blob/main/legal_disclaimer.txt) for licensing.
+- See [legal_disclaimer.txt](https://github.com/MBM056/2026-Hackathon/blob/main/legal_disclaimer.txt) for legal disclaimer.
