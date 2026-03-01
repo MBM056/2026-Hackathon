@@ -73,8 +73,8 @@ class RunRequest(BaseModel):
     steps: int = Field(default=400, ge=20, le=2000)
     people: int = Field(default=200, ge=1, le=2000)
     grid: int = Field(default=140, ge=40, le=400)
-    fps: int = Field(default=15, ge=1, le=60)
-    render_every: int = Field(default=1, ge=1, le=20)
+    fps: int = Field(default=12, ge=1, le=60)
+    render_every: int = Field(default=2, ge=1, le=20)
     alarm_at: Optional[float] = Field(
         default=None,
         validation_alias=AliasChoices("alarm_at", "alarm-at"),
@@ -133,8 +133,8 @@ async def run_upload(
     steps: int = Form(400),
     people: int = Form(200),
     grid: int = Form(140),
-    fps: int = Form(15),
-    render_every: int = Form(1),
+    fps: int = Form(12),
+    render_every: int = Form(2),
     alarm_at: Optional[float] = Form(None),
     awareness_radius: int = Form(6),
     bucket: Optional[str] = Form(None),
