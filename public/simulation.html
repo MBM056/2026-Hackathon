@@ -187,6 +187,7 @@
       <a class="btn" href="map-editor.html">Map Editor</a>
       <a class="btn btn-primary" href="simulation.html">Simulation</a>
       <a class="btn" href="how-to.html">How To</a>
+      <a class="btn" href="history.html">History</a>
       <a class="btn" href="legal.html">Legal</a>
     </div>
   </nav>
@@ -270,7 +271,49 @@
     const videoLink = document.getElementById("videoLink");
     const mapFileEl = document.getElementById("mapFile");
     const compareResultsEl = document.getElementById("compareResults");
+    const HISTORY_KEY = "pyroplan_run_history_v1";
+    const RERUN_KEY = "pyroplan_rerun_draft_v1";
     let timerHandle = null;
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveHistoryEntry(entry) {
+      const history = loadHistory();
+      history.unshift(entry);
+      const trimmed = history.slice(0, 200);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+    }
+
+    function applyRerunDraft() {
+      try {
+        const raw = localStorage.getItem(RERUN_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        if (!draft || typeof draft !== "object") return;
+        if (typeof draft.out === "string") document.getElementById("out").value = draft.out;
+        if (typeof draft.fire === "string") document.getElementById("fire").value = draft.fire;
+        if (typeof draft.people === "number") document.getElementById("people").value = draft.people;
+        if (typeof draft.grid === "number") document.getElementById("grid").value = draft.grid;
+        if (typeof draft.steps === "number") document.getElementById("steps").value = draft.steps;
+        if (typeof draft.alarm_at === "number") document.getElementById("alarmAt").value = draft.alarm_at;
+        if (typeof draft.awareness_radius === "number") document.getElementById("awarenessRadius").value = draft.awareness_radius;
+        if (Array.isArray(draft.scenarios)) {
+          document.getElementById("scenariosJson").value = JSON.stringify(draft.scenarios, null, 2);
+        }
+      } catch (e) {
+        // Ignore malformed drafts
+      } finally {
+        localStorage.removeItem(RERUN_KEY);
+      }
+    }
 
     function parseFireValue(raw) {
       const value = String(raw || "").trim();
@@ -393,6 +436,26 @@
         } else {
           statusEl.textContent = "Simulation complete, but video link is unavailable.";
         }
+
+        saveHistoryEntry({
+          mode: "single",
+          created_at: new Date().toISOString(),
+          params: {
+            out: payload.out,
+            fire: document.getElementById("fire").value.trim(),
+            people: payload.people,
+            grid: Number(document.getElementById("grid").value) || 140,
+            steps: payload.steps,
+            alarm_at: payload["alarm-at"],
+            awareness_radius: payload["awareness-radius"]
+          },
+          metrics: {
+            death_count: data.death_count,
+            survival_rate: data.survival_rate,
+            completed_time_seconds: data.completed_time_seconds
+          },
+          video_url: signedUrl || null
+        });
       } catch (err) {
         statusEl.textContent = "Run failed: " + (err && err.message ? err.message : String(err));
       } finally {
@@ -453,6 +516,22 @@
         }
         statusEl.textContent = "Scenario compare complete.";
         renderCompareResults(data);
+
+        saveHistoryEntry({
+          mode: "compare",
+          created_at: new Date().toISOString(),
+          params: {
+            out: outVal,
+            fire: fireVal,
+            people: Number(document.getElementById("people").value) || 50,
+            grid: Number(document.getElementById("grid").value) || 140,
+            steps: Number(document.getElementById("steps").value) || 200,
+            alarm_at: Number(document.getElementById("alarmAt").value) || 10,
+            awareness_radius: Number(document.getElementById("awarenessRadius").value) || 10,
+            scenarios: scenarios
+          },
+          compare: data
+        });
       } catch (err) {
         statusEl.textContent = "Scenario compare failed: " + (err && err.message ? err.message : String(err));
       } finally {
@@ -461,6 +540,8 @@
         compareBtn.disabled = false;
       }
     });
+
+    applyRerunDraft();
   </script>
 </body>
 </html>
