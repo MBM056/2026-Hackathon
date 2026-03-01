@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PyroPlan | History</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1a1a1a, #0b0b0b);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    nav {
+      width: 100%;
+      padding: 18px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(11,11,11,0.7);
+    }
+    .brand {
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #fff;
+    }
+    .nav-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: 0.2s;
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+      cursor: pointer;
+    }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary {
+      border: none;
+      background: linear-gradient(90deg, #ff7a18, #af002d 70%);
+    }
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 20px;
+    }
+    .card {
+      width: min(1100px, 96vw);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+      padding: 24px;
+    }
+    h1 {
+      font-family: "Bungee", cursive;
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, #ff7a18, #ffb347);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+    .results-table th, .results-table td {
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .results-table th { background: rgba(255,255,255,0.08); }
+    .hint { margin-top: 8px; opacity: 0.9; color: #ffd199; }
+    .video-link { color: #ffb347; }
+    footer {
+      padding: 18px;
+      text-align: center;
+      opacity: 0.6;
+      font-size: 0.9rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="index.html">PYROPLAN</a>
+    <div class="nav-actions">
+      <a class="btn" href="index.html">Home</a>
+      <a class="btn" href="about.html">About</a>
+      <a class="btn" href="team.html">Team</a>
+      <a class="btn" href="demo.html">Demo</a>
+      <a class="btn" href="map-editor.html">Map Editor</a>
+      <a class="btn" href="simulation.html">Simulation</a>
+      <a class="btn" href="how-to.html">How To</a>
+      <a class="btn btn-primary" href="history.html">History</a>
+      <a class="btn" href="legal.html">Legal</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h1>Run History</h1>
+      <div class="actions">
+        <button class="btn" id="sortLatestBtn" type="button">Sort: Latest</button>
+        <button class="btn" id="sortBestBtn" type="button">Sort: Best Survival</button>
+        <button class="btn" id="sortDeathsBtn" type="button">Sort: Highest Deaths</button>
+        <button class="btn" id="exportBtn" type="button">Export JSON</button>
+        <button class="btn" id="clearBtn" type="button">Clear History</button>
+      </div>
+      <div id="summary" class="hint"></div>
+      <div id="tableWrap"></div>
+    </section>
+  </main>
+
+  <footer>© 2026 PyroPlan - Hackathon Prototype</footer>
+
+  <script>
+    const HISTORY_KEY = "pyroplan_run_history_v1";
+    const RERUN_KEY = "pyroplan_rerun_draft_v1";
+    let sortMode = "latest";
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveHistory(history) {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function score(entry) {
+      if (entry && entry.mode === "single" && entry.metrics) {
+        return Number(entry.metrics.survival_rate || 0);
+      }
+      if (entry && entry.mode === "compare" && entry.compare && Array.isArray(entry.compare.results) && entry.compare.results.length) {
+        return Number(entry.compare.results[0].survival_rate || 0);
+      }
+      return 0;
+    }
+
+    function deathScore(entry) {
+      if (entry && entry.mode === "single" && entry.metrics) {
+        return Number(entry.metrics.death_count || 0);
+      }
+      if (entry && entry.mode === "compare" && entry.compare && Array.isArray(entry.compare.results) && entry.compare.results.length) {
+        const best = entry.compare.results[0];
+        return Number(best.death_count || 0);
+      }
+      return 0;
+    }
+
+    function sortedHistory(history) {
+      const data = [...history];
+      if (sortMode === "best") return data.sort((a, b) => score(b) - score(a));
+      if (sortMode === "deaths") return data.sort((a, b) => deathScore(b) - deathScore(a));
+      return data.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    }
+
+    function rerunEntry(entry) {
+      if (!entry || !entry.params) return;
+      localStorage.setItem(RERUN_KEY, JSON.stringify(entry.params));
+      window.location.href = "simulation.html";
+    }
+
+    function render() {
+      const history = sortedHistory(loadHistory());
+      const summaryEl = document.getElementById("summary");
+      const wrap = document.getElementById("tableWrap");
+
+      summaryEl.textContent = `Saved runs: ${history.length}`;
+      if (!history.length) {
+        wrap.innerHTML = "<p class=\"hint\">No saved runs yet. Run a simulation first.</p>";
+        return;
+      }
+
+      const rows = history.map((h, idx) => {
+        const ts = h.created_at ? new Date(h.created_at).toLocaleString() : "-";
+        if (h.mode === "single") {
+          const m = h.metrics || {};
+          const p = h.params || {};
+          const video = h.video_url ? `<a class="video-link" href="${h.video_url}" target="_blank" rel="noopener noreferrer">Open Video</a>` : "-";
+          return `<tr>
+            <td>${idx + 1}</td>
+            <td>${ts}</td>
+            <td>Single</td>
+            <td>${m.survival_rate ?? "-"}%</td>
+            <td>${m.death_count ?? "-"}</td>
+            <td>${p.fire ?? "-"}</td>
+            <td>${video}</td>
+            <td><button class="btn" data-rerun="${idx}">Re-run</button></td>
+          </tr>`;
+        }
+        const results = (h.compare && Array.isArray(h.compare.results)) ? h.compare.results : [];
+        const best = results.length ? results[0] : {};
+        const video = best.video_url ? `<a class="video-link" href="${best.video_url}" target="_blank" rel="noopener noreferrer">Best Video</a>` : "-";
+        return `<tr>
+          <td>${idx + 1}</td>
+          <td>${ts}</td>
+          <td>Compare (${results.length})</td>
+          <td>${best.survival_rate ?? "-"}%</td>
+          <td>${best.death_count ?? "-"}</td>
+          <td>${h.params && h.params.fire ? h.params.fire : "-"}</td>
+          <td>${video}</td>
+          <td><button class="btn" data-rerun="${idx}">Re-run</button></td>
+        </tr>`;
+      }).join("");
+
+      wrap.innerHTML = `<table class="results-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>When</th>
+            <th>Mode</th>
+            <th>Survival</th>
+            <th>Deaths</th>
+            <th>Fire</th>
+            <th>Video</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+      const buttons = wrap.querySelectorAll("button[data-rerun]");
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const i = Number(btn.getAttribute("data-rerun"));
+          const selected = history[i];
+          rerunEntry(selected);
+        });
+      });
+    }
+
+    document.getElementById("sortLatestBtn").addEventListener("click", () => { sortMode = "latest"; render(); });
+    document.getElementById("sortBestBtn").addEventListener("click", () => { sortMode = "best"; render(); });
+    document.getElementById("sortDeathsBtn").addEventListener("click", () => { sortMode = "deaths"; render(); });
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      if (!confirm("Clear all saved run history?")) return;
+      saveHistory([]);
+      render();
+    });
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const history = loadHistory();
+      const blob = new Blob([JSON.stringify(history, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "pyroplan-history.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    render();
+  </script>
+</body>
+</html>
