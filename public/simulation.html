@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PyroPlan | Simulation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1a1a1a, #0b0b0b);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    nav {
+      width: 100%;
+      padding: 18px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(11,11,11,0.7);
+    }
+    .brand {
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #fff;
+    }
+    .nav-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: 0.2s;
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+      cursor: pointer;
+    }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary {
+      border: none;
+      background: linear-gradient(90deg, #ff7a18, #af002d 70%);
+    }
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 20px;
+    }
+    .card {
+      width: min(980px, 95vw);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+      padding: 34px;
+    }
+    h1 {
+      font-family: "Bungee", cursive;
+      font-size: clamp(1.9rem, 4vw, 2.6rem);
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, #ff7a18, #ffb347);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      opacity: 0.82;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .full { grid-column: 1 / -1; }
+    label {
+      display: block;
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-bottom: 6px;
+    }
+    input, select {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 10px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #ff7a18; }
+    .actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .status-box {
+      margin-top: 16px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 14px;
+      min-height: 90px;
+      line-height: 1.5;
+    }
+    .status-line {
+      opacity: 0.9;
+    }
+    .timer-line {
+      margin-top: 8px;
+      font-weight: 700;
+      color: #ffb347;
+    }
+    .result-link {
+      margin-top: 12px;
+      display: inline-block;
+      color: #ffb347;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .hint {
+      margin-top: 8px;
+      opacity: 0.9;
+      font-size: 0.9rem;
+      color: #ffd199;
+    }
+    footer {
+      padding: 18px;
+      text-align: center;
+      opacity: 0.6;
+      font-size: 0.9rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    @media (max-width: 760px) {
+      form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="index.html">PYROPLAN</a>
+    <div class="nav-actions">
+      <a class="btn" href="demo.html">Demo</a>
+      <a class="btn btn-primary" href="simulation.html">Simulation</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="card">
+      <h1>Simulation</h1>
+      <p class="subtitle">Run the evacuation simulation from the website and view the backend response directly.</p>
+
+      <form id="simForm">
+        <div class="full">
+          <label for="mapFile">Upload Floor Plan (PNG)</label>
+          <input id="mapFile" type="file" accept=".png,image/png" />
+          <p class="hint">Map rule: exits must be marked in red.</p>
+        </div>
+        <div>
+          <label for="out">Output Filename</label>
+          <input id="out" value="evac_cloud.mp4" />
+        </div>
+        <div>
+          <label for="fire">Fire Start</label>
+          <input id="fire" value="random" placeholder="random or row,col" />
+        </div>
+        <div>
+          <label for="people">People</label>
+          <input id="people" type="number" value="50" min="1" />
+        </div>
+        <div>
+          <label for="steps">Steps</label>
+          <input id="steps" type="number" value="200" min="1" />
+        </div>
+        <div>
+          <label for="alarmAt">Alarm At (s)</label>
+          <input id="alarmAt" type="number" value="10" min="0" step="0.5" />
+        </div>
+        <div>
+          <label for="awarenessRadius">Awareness Radius</label>
+          <input id="awarenessRadius" type="number" value="10" min="0" />
+        </div>
+      </form>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="runBtn" type="button">Run Simulation</button>
+      </div>
+
+      <div id="statusBox" class="status-box">
+        <div id="status" class="status-line">Ready.</div>
+        <div id="timer" class="timer-line" style="display:none;">Rendering: 0.0s</div>
+      </div>
+      <a id="videoLink" class="result-link" target="_blank" rel="noopener noreferrer" style="display:none;">Open Video</a>
+    </section>
+  </main>
+
+  <footer>© 2026 PyroPlan - Hackathon Prototype</footer>
+
+  <script>
+    const API_URL = "https://evac-api-859942469608.us-east1.run.app/run";
+    const API_UPLOAD_URL = API_URL.replace(/\/run$/, "/run-upload");
+    const runBtn = document.getElementById("runBtn");
+    const statusEl = document.getElementById("status");
+    const timerEl = document.getElementById("timer");
+    const videoLink = document.getElementById("videoLink");
+    const mapFileEl = document.getElementById("mapFile");
+    let timerHandle = null;
+
+    function parseFireValue(raw) {
+      const value = String(raw || "").trim();
+      if (!value || value.toLowerCase() === "random") return "random";
+      const parts = value.split(",").map((x) => Number(x.trim()));
+      if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+        return [parts[0], parts[1]];
+      }
+      return "random";
+    }
+
+    runBtn.addEventListener("click", async () => {
+      const selectedFile = mapFileEl.files && mapFileEl.files[0] ? mapFileEl.files[0] : null;
+      const payload = {
+        out: document.getElementById("out").value.trim(),
+        fire: parseFireValue(document.getElementById("fire").value),
+        steps: Number(document.getElementById("steps").value),
+        people: Number(document.getElementById("people").value),
+        "alarm-at": Number(document.getElementById("alarmAt").value),
+        "awareness-radius": Number(document.getElementById("awarenessRadius").value)
+      };
+
+      if (!selectedFile) {
+        statusEl.textContent = "Please upload a PNG floor plan first.";
+        return;
+      }
+
+      runBtn.disabled = true;
+      videoLink.style.display = "none";
+      statusEl.textContent = "Uploading map and running simulation...";
+      timerEl.style.display = "block";
+      const startedAt = Date.now();
+      timerEl.textContent = "Rendering: 0.0s";
+      timerHandle = setInterval(() => {
+        const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
+        timerEl.textContent = "Rendering: " + secs + "s";
+      }, 100);
+
+      try {
+        const formData = new FormData();
+        formData.append("map_file", selectedFile);
+        formData.append("out", payload.out);
+        formData.append("steps", String(payload.steps));
+        formData.append("people", String(payload.people));
+        formData.append("grid", "140");
+        formData.append("fps", "15");
+        formData.append("render_every", "1");
+        formData.append("alarm_at", String(payload["alarm-at"]));
+        formData.append("awareness_radius", String(payload["awareness-radius"]));
+        if (Array.isArray(payload.fire)) {
+          formData.append("fire", payload.fire[0] + "," + payload.fire[1]);
+        } else {
+          formData.append("fire", String(payload.fire));
+        }
+        const res = await fetch(API_UPLOAD_URL, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = "Run failed.";
+          return;
+        }
+        statusEl.textContent = "Simulation complete.";
+
+        const signedUrl = data && data.storage && data.storage.signed_url;
+        if (signedUrl) {
+          videoLink.href = signedUrl;
+          videoLink.style.display = "inline-block";
+        } else {
+          statusEl.textContent = "Simulation complete, but video link is unavailable.";
+        }
+      } catch (err) {
+        statusEl.textContent = "Run failed: " + (err && err.message ? err.message : String(err));
+      } finally {
+        if (timerHandle) {
+          clearInterval(timerHandle);
+          timerHandle = null;
+        }
+        timerEl.style.display = "none";
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
