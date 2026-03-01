@@ -274,8 +274,8 @@
         formData.append("steps", String(payload.steps));
         formData.append("people", String(payload.people));
         formData.append("grid", String(Number(document.getElementById("grid").value) || 140));
-        formData.append("fps", "15");
-        formData.append("render_every", "1");
+        formData.append("fps", "12");
+        formData.append("render_every", "2");
         formData.append("alarm_at", String(payload["alarm-at"]));
         formData.append("awareness_radius", String(payload["awareness-radius"]));
         if (Array.isArray(payload.fire)) {

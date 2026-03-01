@@ -17,12 +17,12 @@ def run_simulation(
     grid=140,
     people=200,
     steps=800,
-    fps=15,
-    render_every=1,
+    fps=12,
+    render_every=2,
     alarm_at=None,
     awareness_radius=6,
-    route_recompute_every=20,
-    max_route_exits=24,
+    route_recompute_every=40,
+    max_route_exits=12,
     fire=None,
     seed=None,
     doors_cli=None,
@@ -86,7 +86,7 @@ def run_simulation(
 
     # Renderer
     render_every = max(1, int(render_every))
-    renderer = VideoRenderer(out_path, fps, base_img, scale=4, exits=exits)
+    renderer = VideoRenderer(out_path, fps, base_img, scale=3, exits=exits)
 
     def build_blocked():
         blocked = fire.blocked.copy()  # burning OR collapsed (per your new FireModel)
@@ -215,11 +215,11 @@ def main():
     ap.add_argument("--grid", type=int, default=140)
     ap.add_argument("--people", type=int, default=200)
     ap.add_argument("--steps", type=int, default=800)
-    ap.add_argument("--fps", type=int, default=15)
+    ap.add_argument("--fps", type=int, default=12)
     ap.add_argument(
         "--render-every",
         type=int,
-        default=1,
+        default=2,
         help="Render one frame every N simulation steps (higher = faster rendering)."
     )
     ap.add_argument(
@@ -237,13 +237,13 @@ def main():
     ap.add_argument(
         "--route-recompute-every",
         type=int,
-        default=20,
+        default=40,
         help="Recompute routing maps every N steps (higher = faster)."
     )
     ap.add_argument(
         "--max-route-exits",
         type=int,
-        default=24,
+        default=12,
         help="Max representative exits used for routing BFS (visual exits unchanged)."
     )
     ap.add_argument(

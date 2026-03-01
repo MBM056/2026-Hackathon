@@ -47,7 +47,8 @@ class VideoRenderer:
             ffmpeg_params=[
                 "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart",
-                "-preset", "veryfast",
+                "-preset", "ultrafast",
+                "-crf", "30",
             ],
         )
         self._static_with_exits = None
