@@ -1,7 +1,7 @@
 import argparse
 import numpy as np
 
-from sim.map_loader import load_map_from_image
+from sim.map_loader import load_map
 from sim.routing import compute_dist_to_exit_bfs
 from sim.fire import FireModel
 from sim.agents import spawn_agents, step_agents
@@ -30,7 +30,7 @@ def run_simulation(
     if doors_cli is None:
         doors_cli = []
     # Load map (your loader returns 5 values)
-    walkable, exits, stairs, doors_from_map, base_img = load_map_from_image(map_path, grid)
+    walkable, exits, stairs, doors_from_map, base_img = load_map(map_path, grid)
     if len(exits) == 0:
         raise SystemExit("No exits detected (check your exit color in the map).")
 
@@ -167,6 +167,8 @@ def run_simulation(
                     time_seconds=sim_time,
                     smoke_mask=fire.smoke_field,
                     alarm_active=alarm_active,
+                    doors=doors,
+                    open_doors=open_doors,
                 )
 
             if not agents:
@@ -185,6 +187,8 @@ def run_simulation(
             alarm_active=alarm_active,
             death_count=total_deaths,
             survival_rate=survival_rate,
+            doors=doors,
+            open_doors=open_doors,
         )
     finally:
         renderer.close()

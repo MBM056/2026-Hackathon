@@ -146,6 +146,35 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
         # instead of committing to one greedy choice.
         reachable = [e for e in planner_exits if dist_maps[e][r, c] < INF]
         if not reachable:
+            closed_doors = list(set(doors) - set(open_doors))
+            if closed_doors:
+                best_local = None
+                best_key = (INF, INF, INF)
+                for dr, dc in NEIGHBORS_8:
+                    nr, nc = r + dr, c + dc
+                    if not (0 <= nr < H and 0 <= nc < W):
+                        continue
+                    if not walkable[nr, nc] or blocked[nr, nc]:
+                        continue
+                    if dr != 0 and dc != 0:
+                        if blocked[r + dr, c] or blocked[r, c + dc]:
+                            continue
+
+                    door_dist = min(abs(nr - dr0) + abs(nc - dc0) for dr0, dc0 in closed_doors)
+                    smoke_pen = _smoke_density_at(smoke_density, nr, nc)
+                    fire_pen = _fire_proximity_penalty(nr, nc, fire_mask, H, W)
+                    key = (door_dist, smoke_pen, fire_pen)
+                    if key < best_key:
+                        best_local = (nr, nc)
+                        best_key = key
+
+                if best_local is not None and best_local not in occupied:
+                    occupied.add(best_local)
+                    a["pos"] = best_local
+                else:
+                    occupied.add((r, c))
+            else:
+                occupied.add((r, c))
             new_agents.append(a)
             continue
 

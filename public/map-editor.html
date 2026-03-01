@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PyroPlan | Map Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1a1a1a, #0b0b0b);
+      color: #fff;
+    }
+    nav {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(11,11,11,0.75);
+    }
+    .brand { color: #fff; text-decoration: none; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .btn {
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .btn-primary { background: linear-gradient(90deg, #ff7a18, #af002d 70%); border: none; }
+    main {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+    }
+    .panel {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .row { margin-bottom: 10px; }
+    label { display: block; font-size: 0.9rem; opacity: 0.9; margin-bottom: 6px; }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+    }
+    select option {
+      color: #111;
+      background: #fff;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .hint { font-size: 0.86rem; opacity: 0.85; line-height: 1.4; }
+    .canvas-wrap {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 14px;
+      padding: 10px;
+      overflow: auto;
+    }
+    canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 0.85rem; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; opacity: 0.95; }
+    .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.25); }
+    @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="index.html">PYROPLAN</a>
+    <a class="btn" href="simulation.html">Simulation</a>
+  </nav>
+
+  <main>
+    <section class="panel">
+      <h2 style="font-family:Bungee, cursive; margin: 0 0 10px 0;">Map Editor</h2>
+      <div class="row">
+        <label for="bgFile">Background PNG (optional)</label>
+        <input id="bgFile" type="file" accept=".png,image/png" />
+      </div>
+      <div class="row">
+        <label for="grid">Grid Size</label>
+        <input id="grid" type="number" min="40" max="400" value="140" />
+      </div>
+      <div class="row">
+        <label for="layer">Active Layer</label>
+        <select id="layer">
+          <option value="walkable">Walkable</option>
+          <option value="walls">Walls (erase walkable)</option>
+          <option value="exits">Exits (red)</option>
+          <option value="doors">Doors (magenta)</option>
+          <option value="stairs">Stairs (blue)</option>
+          <option value="erase">Erase Exits/Doors/Stairs</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="brush">Brush Radius (cells)</label>
+        <input id="brush" type="number" min="0" max="8" value="1" />
+      </div>
+      <div class="actions">
+        <button class="btn" id="newGridBtn" type="button">New Grid</button>
+        <button class="btn" id="autoWalkableBtn" type="button">Auto Walkable</button>
+        <button class="btn" id="clearBtn" type="button">Clear Layers</button>
+        <button class="btn btn-primary" id="exportJsonBtn" type="button">Export JSON</button>
+        <button class="btn" id="exportPngBtn" type="button">Export Preview PNG</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">
+        Workflow: load optional background, paint semantic layers, export JSON, then run simulation with that JSON file.
+      </p>
+      <p class="hint">
+        Required: mark at least one exit. Doors and stairs are optional.
+      </p>
+    </section>
+
+    <section class="canvas-wrap panel">
+      <canvas id="editorCanvas" width="560" height="560"></canvas>
+      <div class="legend">
+        <span class="chip"><span class="swatch" style="background:#ebebeb;"></span>walkable</span>
+        <span class="chip"><span class="swatch" style="background:#222;"></span>walls</span>
+        <span class="chip"><span class="swatch" style="background:#ff3b30;"></span>exits</span>
+        <span class="chip"><span class="swatch" style="background:#d633ff;"></span>doors</span>
+        <span class="chip"><span class="swatch" style="background:#2d6dff;"></span>stairs</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("editorCanvas");
+    const ctx = canvas.getContext("2d");
+    const gridInput = document.getElementById("grid");
+    const layerInput = document.getElementById("layer");
+    const brushInput = document.getElementById("brush");
+    const bgFileInput = document.getElementById("bgFile");
+    const newGridBtn = document.getElementById("newGridBtn");
+    const autoWalkableBtn = document.getElementById("autoWalkableBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const exportJsonBtn = document.getElementById("exportJsonBtn");
+    const exportPngBtn = document.getElementById("exportPngBtn");
+
+    let grid = 140;
+    let scale = 4;
+    let bgImage = null;
+    let isDrawing = false;
+
+    let walkable = [];
+    let exits = [];
+    let doors = [];
+    let stairs = [];
+
+    function createMask(value=false) {
+      return Array.from({ length: grid }, () => Array.from({ length: grid }, () => value));
+    }
+
+    function resetMasks() {
+      walkable = createMask(false);
+      exits = createMask(false);
+      doors = createMask(false);
+      stairs = createMask(false);
+    }
+
+    function rebuildCanvas() {
+      grid = Math.max(40, Math.min(400, Number(gridInput.value) || 140));
+      scale = Math.max(2, Math.floor(560 / grid));
+      canvas.width = grid * scale;
+      canvas.height = grid * scale;
+      resetMasks();
+      render();
+    }
+
+    function render() {
+      ctx.fillStyle = "#202020";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (bgImage) {
+        ctx.globalAlpha = 0.45;
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1.0;
+      }
+
+      for (let r = 0; r < grid; r++) {
+        for (let c = 0; c < grid; c++) {
+          if (walkable[r][c]) drawCell(r, c, "#ebebeb");
+          if (stairs[r][c]) drawCell(r, c, "#2d6dff");
+          if (doors[r][c]) drawCell(r, c, "#d633ff");
+          if (exits[r][c]) drawCell(r, c, "#ff3b30");
+        }
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= grid; i++) {
+        const p = i * scale;
+        ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height); ctx.stroke();
+      }
+    }
+
+    function drawCell(r, c, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(c * scale, r * scale, scale, scale);
+    }
+
+    function applyBrush(r0, c0) {
+      const layer = layerInput.value;
+      const radius = Math.max(0, Math.min(8, Number(brushInput.value) || 0));
+      for (let dr = -radius; dr <= radius; dr++) {
+        for (let dc = -radius; dc <= radius; dc++) {
+          const r = r0 + dr;
+          const c = c0 + dc;
+          if (r < 0 || r >= grid || c < 0 || c >= grid) continue;
+          if (dr * dr + dc * dc > radius * radius) continue;
+
+          if (layer === "walkable") walkable[r][c] = true;
+          if (layer === "walls") {
+            walkable[r][c] = false;
+            exits[r][c] = false; doors[r][c] = false; stairs[r][c] = false;
+          }
+          if (layer === "exits") { exits[r][c] = true; walkable[r][c] = true; }
+          if (layer === "doors") { doors[r][c] = true; walkable[r][c] = true; }
+          if (layer === "stairs") { stairs[r][c] = true; walkable[r][c] = true; }
+          if (layer === "erase") { exits[r][c] = false; doors[r][c] = false; stairs[r][c] = false; }
+        }
+      }
+      render();
+    }
+
+    function eventToCell(evt) {
+      const rect = canvas.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const y = evt.clientY - rect.top;
+      const c = Math.floor(x / scale);
+      const r = Math.floor(y / scale);
+      return { r, c };
+    }
+
+    canvas.addEventListener("mousedown", (evt) => {
+      isDrawing = true;
+      const { r, c } = eventToCell(evt);
+      applyBrush(r, c);
+    });
+    canvas.addEventListener("mousemove", (evt) => {
+      if (!isDrawing) return;
+      const { r, c } = eventToCell(evt);
+      applyBrush(r, c);
+    });
+    window.addEventListener("mouseup", () => { isDrawing = false; });
+
+    newGridBtn.addEventListener("click", rebuildCanvas);
+    clearBtn.addEventListener("click", () => { resetMasks(); render(); });
+
+    bgFileInput.addEventListener("change", () => {
+      const file = bgFileInput.files && bgFileInput.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { bgImage = img; render(); URL.revokeObjectURL(url); };
+      img.src = url;
+    });
+
+    autoWalkableBtn.addEventListener("click", () => {
+      if (!bgImage) return;
+      const off = document.createElement("canvas");
+      off.width = grid; off.height = grid;
+      const octx = off.getContext("2d");
+      octx.drawImage(bgImage, 0, 0, grid, grid);
+      const data = octx.getImageData(0, 0, grid, grid).data;
+      for (let r = 0; r < grid; r++) {
+        for (let c = 0; c < grid; c++) {
+          const i = (r * grid + c) * 4;
+          const rr = data[i + 0], gg = data[i + 1], bb = data[i + 2];
+          const gray = 0.299 * rr + 0.587 * gg + 0.114 * bb;
+          walkable[r][c] = gray > 200;
+        }
+      }
+      render();
+    });
+
+    function collectCoords(mask) {
+      const out = [];
+      for (let r = 0; r < grid; r++) {
+        for (let c = 0; c < grid; c++) {
+          if (mask[r][c]) out.push([r, c]);
+        }
+      }
+      return out;
+    }
+
+    exportJsonBtn.addEventListener("click", () => {
+      const exitsCount = collectCoords(exits).length;
+      if (exitsCount === 0) {
+        alert("Add at least one exit before exporting.");
+        return;
+      }
+      const payload = {
+        schema: "pyroplan-map-v1",
+        grid,
+        walkable: collectCoords(walkable),
+        exits: collectCoords(exits),
+        doors: collectCoords(doors),
+        stairs: collectCoords(stairs)
+      };
+      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "pyroplan-map.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    exportPngBtn.addEventListener("click", () => {
+      render();
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = "pyroplan-map-preview.png";
+      a.click();
+    });
+
+    rebuildCanvas();
+  </script>
+</body>
+</html>

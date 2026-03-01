@@ -68,6 +68,8 @@ class VideoRenderer:
         alarm_active=False,
         death_count=None,
         survival_rate=None,
+        doors=None,
+        open_doors=None,
     ):
         if self._static_with_exits is None:
             self._build_static_with_exits(exits)
@@ -95,6 +97,15 @@ class VideoRenderer:
         fm = (fire_mask.astype(np.uint8) * 255)
         fm_big = cv2.resize(fm, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
         frame[fm_big > 0] = (0, 0, 255)  # red (BGR)
+
+        # Draw doors: closed=magenta, open=cyan
+        if doors:
+            open_set = set(open_doors or [])
+            for r, c in doors:
+                x = int(c * self.scale)
+                y = int(r * self.scale)
+                color = (255, 255, 0) if (r, c) in open_set else (255, 0, 255)
+                cv2.rectangle(frame, (x - 2, y - 2), (x + 2, y + 2), color, -1)
 
         # Agents (small count, loop is fine)
         for a in agents:
