@@ -14,7 +14,7 @@ class VideoRenderer:
 
     Notes:
       - fire_mask: bool grid (H,W) -> drawn red (solid)
-      - smoke_mask: bool grid (H,W) -> light grey translucent overlay
+      - smoke_mask: bool OR float grid (H,W); float is treated as density [0..1]
     """
 
     def __init__(self, out_path, fps, base_img, scale=4, exits=None):
@@ -63,15 +63,23 @@ class VideoRenderer:
             self._build_static_with_exits(exits)
         frame = self._static_with_exits.copy()
 
-        # ---- FAST SMOKE OVERLAY (vectorized) ----
-        # smoke_mask is (H,W) bool; we upscale it once and blend in one operation
+        # ---- SMOKE OVERLAY (vectorized) ----
         if smoke_mask is not None:
-            sm = (smoke_mask.astype(np.uint8) * 255)
-            sm_big = cv2.resize(sm, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+            if smoke_mask.dtype == np.bool_:
+                sm = smoke_mask.astype(np.float32)
+            else:
+                sm = np.asarray(smoke_mask, dtype=np.float32)
+                sm = np.clip(sm, 0.0, 1.0)
 
-            overlay = frame.copy()
-            overlay[sm_big > 0] = (200, 200, 200)  # light grey (BGR)
-            frame = cv2.addWeighted(overlay, 0.35, frame, 0.65, 0)
+            sm_big = cv2.resize(sm, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+            sm_big = np.clip(sm_big, 0.0, 1.0)
+
+            if np.any(sm_big > 0.01):
+                # Denser smoke -> darker, more opaque haze (more visible on bright maps).
+                alpha = 0.12 + 0.70 * sm_big
+                alpha3 = alpha[..., None]
+                haze = np.full_like(frame, 70)
+                frame = (frame * (1.0 - alpha3) + haze * alpha3).astype(np.uint8)
 
         # ---- FAST FIRE DRAW (vectorized) ----
         fm = (fire_mask.astype(np.uint8) * 255)

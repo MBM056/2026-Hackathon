@@ -170,11 +170,12 @@ def main():
                 dist_maps,
                 doors,
                 open_doors,
-                fire_smoke=fire.smoke,
+                fire_smoke=fire.smoke_field,
                 fire_mask=fire.burning,
                 alarm_active=alarm_active,
                 awareness_radius=args.awareness_radius,
                 evac_exits=exits,
+                step_seconds=SECONDS_PER_STEP,
             )
 
             # If any door opened, update routing immediately
@@ -193,7 +194,7 @@ def main():
                     exits,
                     fire.burning,
                     time_seconds=sim_time,
-                    smoke_mask=fire.smoke,
+                    smoke_mask=fire.smoke_field,
                     alarm_active=alarm_active,
                 )
 
