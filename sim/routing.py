@@ -3,6 +3,10 @@ import numpy as np
 from collections import deque
 
 INF = 10**9
+NEIGHBORS_8 = (
+    (1, 0), (-1, 0), (0, 1), (0, -1),
+    (1, 1), (1, -1), (-1, 1), (-1, -1),
+)
 
 def compute_dist_to_exit_bfs(walkable, blocked, exit_cell):
     H, W = walkable.shape
@@ -19,11 +23,16 @@ def compute_dist_to_exit_bfs(walkable, blocked, exit_cell):
         r, c = q.popleft()
         d = dist[r, c] + 1
 
-        # 4-neighborhood
-        for dr, dc in ((1,0), (-1,0), (0,1), (0,-1)):
+        # 8-neighborhood (with no-corner-cutting on diagonals)
+        for dr, dc in NEIGHBORS_8:
             nr, nc = r + dr, c + dc
             if 0 <= nr < H and 0 <= nc < W:
-                if walkable[nr, nc] and not blocked[nr, nc] and dist[nr, nc] > d:
+                if not walkable[nr, nc] or blocked[nr, nc]:
+                    continue
+                if dr != 0 and dc != 0:
+                    if blocked[r + dr, c] or blocked[r, c + dc]:
+                        continue
+                if dist[nr, nc] > d:
                     dist[nr, nc] = d
                     q.append((nr, nc))
 
