@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PyroPlan | Legal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Bungee font -->
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1a1a1a, #0b0b0b);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    nav {
+      width: 100%;
+      padding: 18px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(11,11,11,0.7);
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #fff;
+    }
+
+    .nav-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: 0.2s;
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+      display: inline-block;
+    }
+
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-primary {
+      border: none;
+      background: linear-gradient(90deg, #ff7a18, #af002d 70%);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 60px 20px;
+    }
+
+    .card {
+      width: min(900px, 95vw);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+      padding: 44px 38px;
+    }
+
+    h1 {
+      font-family: 'Bungee', cursive;
+      font-size: clamp(1.9rem, 4vw, 2.6rem);
+      line-height: 1.2;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+      background: linear-gradient(90deg, #ff7a18, #ffb347);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .sub {
+      opacity: 0.8;
+      margin-bottom: 26px;
+      font-size: 0.98rem;
+    }
+
+    .legal {
+      line-height: 1.65;
+      opacity: 0.92;
+      font-size: 1rem;
+      white-space: pre-line; /* keeps your paragraph breaks */
+    }
+
+    .pill-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .pill {
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.06);
+      padding: 10px 12px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    footer {
+      padding: 18px;
+      text-align: center;
+      opacity: 0.6;
+      font-size: 0.9rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+  </style>
+</head>
+
+<body>
+  <nav>
+    <a class="brand" href="index.html">PYROPLAN</a>
+    <div class="nav-actions">
+      <a class="btn btn-primary" href="index.html">Back Home</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="card">
+      <h1>Legal & Disclaimer</h1>
+      <p class="sub">Last updated: 2026</p>
+
+      <div class="legal">
+PyroPlan is an automated simulation and informational tool intended solely for educational, planning, and modeling purposes. It is not a substitute for certified fire safety services, licensed fire protection engineering, building code compliance review, or professional emergency planning.
+
+PyroPlan does not guarantee that simulations, evacuation routes, or outputs will be 100% accurate, complete, reliable, or applicable to all real-world situations. Actual emergency conditions—including but not limited to fire spread, smoke conditions, blocked exits, structural failure, human behavior, or system disruptions—may differ significantly from simulated scenarios.
+
+In the event of an emergency, users must follow all posted evacuation signage, building emergency procedures, and instructions from certified emergency personnel. PyroPlan is not a replacement for official evacuation plans or emergency response direction.
+
+To the maximum extent permitted by applicable law, the developers and operators of PyroPlan shall not be liable for any injury, death, property damage, business interruption, data inaccuracies, delayed system outputs, or any other direct, indirect, incidental, consequential, or special damages arising out of or related to the use of, reliance upon, or inability to use PyroPlan, including in connection with fires, smoke events, or other emergency situations.
+
+PyroPlan is provided on an “AS IS” and “AS AVAILABLE” basis, without warranties of any kind, whether express or implied.
+      </div>
+
+      <div class="pill-row">
+        <div class="pill">Educational Use Only</div>
+        <div class="pill">No Professional Advice</div>
+        <div class="pill">No Warranty</div>
+        <div class="pill">Limited Liability</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    © 2026 PyroPlan — Hackathon Prototype
+  </footer>
+</body>
+</html>

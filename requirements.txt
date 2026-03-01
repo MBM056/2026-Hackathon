@@ -1,4 +1,6 @@
-numpy
-opencv-python
-imageio
-imageio-ffmpeg
+numpy>=2.1
+opencv-python>=4.10
+matplotlib>=3.9
+imageio>=2.35
+Pillow>=10.4
+python-dotenv>=1.0

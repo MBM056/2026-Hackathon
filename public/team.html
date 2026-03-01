@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Team | PyroPlan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Bungee Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+
+    body {
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #1a1a1a, #0b0b0b);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+
+    nav {
+      width: 100%;
+      padding: 18px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      background: rgba(11,11,11,0.7);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #fff;
+    }
+
+    .nav-actions { display: flex; gap: 10px; }
+
+    .btn {
+      padding: 10px 14px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: 0.2s;
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+    }
+
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-primary {
+      border: none;
+      background: linear-gradient(90deg, #ff7a18, #af002d 70%);
+    }
+
+    main {
+      flex: 1;
+      padding: 60px 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: min(1200px, 95vw);
+    }
+
+    h1 {
+      font-family: 'Bungee', cursive;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      margin-bottom: 40px;
+      text-align: center;
+
+      background: linear-gradient(90deg, #ff7a18, #ffb347);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    .member {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 18px;
+      padding: 22px;
+      text-align: center;
+      transition: 0.25s ease;
+    }
+
+    .member:hover {
+      transform: translateY(-6px);
+      border-color: #ff7a18;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+    }
+
+    .profile-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 18px;
+      border: 3px solid #ff7a18;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    }
+
+    .member h3 {
+      font-size: 1.2rem;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+
+      background: linear-gradient(90deg, #ff7a18, #ffb347);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .role {
+      font-size: 0.95rem;
+      opacity: 0.75;
+      margin-bottom: 12px;
+    }
+
+    .bio {
+      font-size: 0.9rem;
+      opacity: 0.88;
+      line-height: 1.6;
+    }
+
+    footer {
+      padding: 18px;
+      text-align: center;
+      opacity: 0.6;
+      font-size: 0.9rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    @media (max-width: 1100px) {
+      .team-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 600px) {
+      .team-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav>
+    <a class="brand" href="index.html">PYROPLAN</a>
+    <div class="nav-actions">
+      <a class="btn btn-primary" href="index.html">Home</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <h1>Meet the Team</h1>
+
+      <div class="team-grid">
+
+        <!-- Member 1 -->
+        <div class="member">
+          <img src="images/ryan.png" alt="Ryan Cortes" class="profile-img">
+          <h3>Ryan Cortes</h3>
+          <div class="role">Backend / AI Development</div>
+          <div class="bio">
+            Ryan is a Computer Science and Cybersecurity Engineering double major
+            with a concentration in AI and minors in Electrical Engineering,
+            Computer Engineering, and Mathematics at the University of Delaware.
+            This is his third hackathon at UD. He focused on backend development,
+            algorithm design, computer vision training, and architecting the
+            overall workflow of PyroPlan.
+          </div>
+        </div>
+
+        <!-- Member 2 - MAX -->
+        <div class="member">
+          <img src="images/max.png" alt="Maxwell Morrison" class="profile-img">
+          <h3>Maxwell Morrison</h3>
+          <div class="role">Frontend / User Interface</div>
+          <div class="bio">
+            Maxwell Morrison is an Electrical Engineering and Mathematics double major
+            with a minor in Computer Science at the University of Delaware.
+            This is his third hackathon at UD. He led the development of PyroPlan’s
+            front-end and user interface, designing a seamless and intuitive website
+            experience for users. Maxwell is also a member of Eta Kappa Nu (HKN)
+            and serves as Treasurer of UD’s IEEE chapter.
+          </div>
+        </div>
+
+        <!-- Member 3 -->
+        <div class="member">
+          <img src="images/shay.png" alt="Shreyas Nair" class="profile-img">
+          <h3>Shreyas Nair</h3>
+          <div class="role">Frontend Integration / Hosting</div>
+          <p class="bio">
+            Shay is a Cyber Security Engineering major with minors in Electrical Engineering 
+            and Computer Engineering. This is his second hackathon. He focused on connecting 
+            the user interface to backend functionality, ensuring smooth integration, deployment, 
+            and reliable hosting for PyroPlan.
+          </p>
+        </div>
+
+        <!-- Member 4 - Olivia -->
+        <div class="member">
+          <img src="images/Olivia.png" alt="Olivia Farro" class="profile-img">
+          <h3>Olivia Farro</h3>
+          <div class="role">Strategy / Presentation Lead</div>
+          <div class="bio">
+            Olivia is a Criminal Justice, Political Science, and Sociology triple major at the University of Delaware. 
+            She is also a member of the Delaware National Guard and ROTC. She is interested in law, public service, 
+            and has experience in the criminal justice and emergency management fields.
+            Olivia leads project strategy and presentation development, helping shape PyroPlan’s vision 
+            and clearly communicate its value. She focuses on refining the problem narrative, ensuring 
+            the solution aligns with real-world needs, and delivering a compelling final pitch.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    © 2026 PyroPlan — Hackathon Team
+  </footer>
+
+</body>
+</html>
