@@ -182,10 +182,15 @@
         <div>
           <label for="fire">Fire Start</label>
           <input id="fire" value="random" placeholder="random or row,col" />
+          <p class="hint">Coordinate format is row,col only. Example: 70,45.</p>
         </div>
         <div>
           <label for="people">People</label>
           <input id="people" type="number" value="50" min="1" />
+        </div>
+        <div>
+          <label for="grid">Grid</label>
+          <input id="grid" type="number" value="140" min="40" max="400" />
         </div>
         <div>
           <label for="steps">Steps</label>
@@ -268,7 +273,7 @@
         formData.append("out", payload.out);
         formData.append("steps", String(payload.steps));
         formData.append("people", String(payload.people));
-        formData.append("grid", "140");
+        formData.append("grid", String(Number(document.getElementById("grid").value) || 140));
         formData.append("fps", "15");
         formData.append("render_every", "1");
         formData.append("alarm_at", String(payload["alarm-at"]));

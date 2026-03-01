@@ -61,6 +61,11 @@
     }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .hint { font-size: 0.86rem; opacity: 0.85; line-height: 1.4; }
+    .coord-readout {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #ffd7b8;
+    }
     .canvas-wrap {
       background: rgba(0,0,0,0.35);
       border: 1px solid rgba(255,255,255,0.14);
@@ -72,6 +77,18 @@
     .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 0.85rem; }
     .chip { display: inline-flex; align-items: center; gap: 6px; opacity: 0.95; }
     .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.25); }
+    .legend-tools {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .legend-tools select {
+      width: auto;
+      min-width: 90px;
+      padding: 6px 8px;
+    }
     @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -96,6 +113,10 @@
       <div class="row">
         <label for="bgFile">Background PNG (optional)</label>
         <input id="bgFile" type="file" accept=".png,image/png" />
+      </div>
+      <div class="row">
+        <label for="jsonFile">Import Semantic JSON (optional)</label>
+        <input id="jsonFile" type="file" accept=".json,application/json,text/plain" />
       </div>
       <div class="row">
         <label for="grid">Grid Size</label>
@@ -140,6 +161,14 @@
         <span class="chip"><span class="swatch" style="background:#d633ff;"></span>doors</span>
         <span class="chip"><span class="swatch" style="background:#2d6dff;"></span>stairs</span>
       </div>
+      <div class="legend-tools">
+        <label for="showCoords" style="margin:0;">Coords</label>
+        <select id="showCoords">
+          <option value="off">Off</option>
+          <option value="on">On</option>
+        </select>
+      <div id="coordReadout" class="coord-readout" style="margin:0;">Cursor: row -, col -</div>
+      </div>
     </section>
   </main>
 
@@ -149,7 +178,10 @@
     const gridInput = document.getElementById("grid");
     const layerInput = document.getElementById("layer");
     const brushInput = document.getElementById("brush");
+    const showCoordsInput = document.getElementById("showCoords");
+    const coordReadout = document.getElementById("coordReadout");
     const bgFileInput = document.getElementById("bgFile");
+    const jsonFileInput = document.getElementById("jsonFile");
     const newGridBtn = document.getElementById("newGridBtn");
     const autoWalkableBtn = document.getElementById("autoWalkableBtn");
     const clearBtn = document.getElementById("clearBtn");
@@ -212,6 +244,23 @@
         ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(canvas.width, p); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, canvas.height); ctx.stroke();
       }
+
+      if (showCoordsInput.value === "on") {
+        // Label every N cells to keep text readable on large grids.
+        const step = Math.max(1, Math.floor(grid / 20));
+        const fontSize = Math.max(8, Math.floor(scale * 2.4));
+        ctx.fillStyle = "rgba(255, 210, 170, 0.9)";
+        ctx.font = `${fontSize}px Arial`;
+        for (let i = 0; i < grid; i += step) {
+          const x = i * scale + 2;
+          const yTop = Math.max(10, fontSize + 1);
+          const yRow = i * scale + Math.max(10, fontSize);
+          // Column labels across top.
+          ctx.fillText(String(i), x, yTop);
+          // Row labels down left.
+          ctx.fillText(String(i), 2, yRow);
+        }
+      }
     }
 
     function drawCell(r, c, color) {
@@ -245,10 +294,14 @@
 
     function eventToCell(evt) {
       const rect = canvas.getBoundingClientRect();
-      const x = evt.clientX - rect.left;
-      const y = evt.clientY - rect.top;
-      const c = Math.floor(x / scale);
-      const r = Math.floor(y / scale);
+      // Use display-to-canvas scaling to keep coordinates accurate under
+      // browser zoom / CSS scaling.
+      const sx = canvas.width / rect.width;
+      const sy = canvas.height / rect.height;
+      const x = (evt.clientX - rect.left) * sx;
+      const y = (evt.clientY - rect.top) * sy;
+      const c = Math.floor(x / scale);  // x-axis -> col
+      const r = Math.floor(y / scale);  // y-axis -> row
       return { r, c };
     }
 
@@ -258,9 +311,15 @@
       applyBrush(r, c);
     });
     canvas.addEventListener("mousemove", (evt) => {
-      if (!isDrawing) return;
       const { r, c } = eventToCell(evt);
+      if (r >= 0 && r < grid && c >= 0 && c < grid) {
+        coordReadout.textContent = `Cursor: row ${r}, col ${c}`;
+      }
+      if (!isDrawing) return;
       applyBrush(r, c);
+    });
+    canvas.addEventListener("mouseleave", () => {
+      coordReadout.textContent = "Cursor: row -, col -";
     });
     window.addEventListener("mouseup", () => { isDrawing = false; });
 
@@ -274,6 +333,39 @@
       const img = new Image();
       img.onload = () => { bgImage = img; render(); URL.revokeObjectURL(url); };
       img.src = url;
+    });
+
+    jsonFileInput.addEventListener("change", async () => {
+      const file = jsonFileInput.files && jsonFileInput.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const importedGrid = Number(data.grid);
+        if (!Number.isInteger(importedGrid) || importedGrid < 40 || importedGrid > 400) {
+          alert("Invalid JSON map: grid must be an integer between 40 and 400.");
+          return;
+        }
+
+        gridInput.value = String(importedGrid);
+        rebuildCanvas();
+
+        applyCoordsToMask(walkable, data.walkable);
+        applyCoordsToMask(exits, data.exits);
+        applyCoordsToMask(doors, data.doors);
+        applyCoordsToMask(stairs, data.stairs);
+
+        for (let r = 0; r < grid; r++) {
+          for (let c = 0; c < grid; c++) {
+            if (exits[r][c] || doors[r][c] || stairs[r][c]) {
+              walkable[r][c] = true;
+            }
+          }
+        }
+        render();
+      } catch (err) {
+        alert("Failed to import JSON map.");
+      }
     });
 
     autoWalkableBtn.addEventListener("click", () => {
@@ -293,6 +385,19 @@
       }
       render();
     });
+    showCoordsInput.addEventListener("change", render);
+
+    function applyCoordsToMask(mask, coords) {
+      if (!Array.isArray(coords)) return;
+      for (const item of coords) {
+        if (!Array.isArray(item) || item.length !== 2) continue;
+        const r = Number(item[0]);
+        const c = Number(item[1]);
+        if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
+        if (r < 0 || r >= grid || c < 0 || c >= grid) continue;
+        mask[r][c] = true;
+      }
+    }
 
     function collectCoords(mask) {
       const out = [];
