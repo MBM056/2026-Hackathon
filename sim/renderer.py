@@ -1,102 +1,89 @@
 # sim/renderer.py
+import os
 import cv2
 import numpy as np
 import imageio.v2 as imageio
-import os
 
 
 class VideoRenderer:
     """
-    MP4 renderer guaranteed to open in:
-      - Windows Media Player
-      - VLC
-      - Chrome / Firefox
+    Fast MP4 renderer with smoke overlay.
 
-    Uses:
-      - FFmpeg backend
-      - H.264 (libx264)
-      - yuv420p pixel format
+    Call:
+      write_frame(agents, exits, fire_mask, time_seconds, smoke_mask=fire.smoke, alarm_active=False)
+
+    Notes:
+      - fire_mask: bool grid (H,W) -> drawn red (solid)
+      - smoke_mask: bool grid (H,W) -> light grey translucent overlay
     """
 
-    def __init__(self, out_path, fps, base_img, scale=4):
-        if not out_path.lower().endswith(".mp4"):
-            raise ValueError("This renderer ONLY supports .mp4 output")
-
-        if not hasattr(self, "_dbg_first"):
-            self._dbg_first = True
-            print("[DEBUG] write_frame called (first frame)")
-        
+    def __init__(self, out_path, fps, base_img, scale=4, exits=None):
         self.out_path = out_path
-        self.fps = fps
-        self.scale = scale
+        self.fps = int(fps)
+        self.scale = int(scale)
 
-        # Enlarge map for visibility
+        # Upscale base image for visibility
         self.base = cv2.resize(
             base_img,
             None,
-            fx=scale,
-            fy=scale,
-            interpolation=cv2.INTER_NEAREST
+            fx=self.scale,
+            fy=self.scale,
+            interpolation=cv2.INTER_NEAREST,
         )
 
-        # Ensure even dimensions (some codecs hate odd sizes)
+        # Ensure even dimensions (helps codecs)
         h, w, _ = self.base.shape
         if h % 2 == 1:
             self.base = self.base[:-1, :, :]
         if w % 2 == 1:
             self.base = self.base[:, :-1, :]
 
-        # --- HARDENED MP4 WRITER ---
         self.writer = imageio.get_writer(
             out_path,
-            fps=fps,
+            fps=self.fps,
             format="FFMPEG",
             codec="libx264",
             macro_block_size=None,
             ffmpeg_params=[
                 "-pix_fmt", "yuv420p",
-                "-profile:v", "baseline",
-                "-movflags", "+faststart"
-            ]
+                "-movflags", "+faststart",
+                "-preset", "veryfast",
+            ],
         )
+        self._static_with_exits = None
+        self._exits_signature = None
+        if exits is not None:
+            self._build_static_with_exits(exits)
 
         self.frames_written = 0
         print(f"[Renderer] Writing MP4 to {os.path.abspath(out_path)}")
 
-    def write_frame(self, agents, exits, fire_mask, time_seconds):
-        frame = self.base.copy()
+    def write_frame(self, agents, exits, fire_mask, time_seconds, smoke_mask=None, alarm_active=False):
+        if self._static_with_exits is None:
+            self._build_static_with_exits(exits)
+        frame = self._static_with_exits.copy()
 
-        # Fire (red)
-        fire_cells = np.where(fire_mask)
-        for r, c in zip(fire_cells[0], fire_cells[1]):
-            cv2.circle(
-                frame,
-                (int(c * self.scale), int(r * self.scale)),
-                self.scale,
-                (0, 0, 255),
-                -1
-            )
+        # ---- FAST SMOKE OVERLAY (vectorized) ----
+        # smoke_mask is (H,W) bool; we upscale it once and blend in one operation
+        if smoke_mask is not None:
+            sm = (smoke_mask.astype(np.uint8) * 255)
+            sm_big = cv2.resize(sm, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-        # Exits (green)
-        for r, c in exits:
-            cv2.rectangle(
-                frame,
-                (int(c * self.scale - 4), int(r * self.scale - 4)),
-                (int(c * self.scale + 4), int(r * self.scale + 4)),
-                (0, 255, 0),
-                -1
-            )
+            overlay = frame.copy()
+            overlay[sm_big > 0] = (200, 200, 200)  # light grey (BGR)
+            frame = cv2.addWeighted(overlay, 0.35, frame, 0.65, 0)
 
-        # Agents (yellow)
+        # ---- FAST FIRE DRAW (vectorized) ----
+        fm = (fire_mask.astype(np.uint8) * 255)
+        fm_big = cv2.resize(fm, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_NEAREST)
+        frame[fm_big > 0] = (0, 0, 255)  # red (BGR)
+
+        # Agents (small count, loop is fine)
         for a in agents:
             r, c = a["pos"]
-            cv2.circle(
-                frame,
-                (int(c * self.scale), int(r * self.scale)),
-                self.scale,
-                (0, 255, 255),
-                -1
-            )
+            x = int(c * self.scale)
+            y = int(r * self.scale)
+            cv2.circle(frame, (x, y), self.scale, (0, 255, 255), -1)
 
         # Timestamp
         cv2.putText(
@@ -106,14 +93,38 @@ class VideoRenderer:
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
             (255, 255, 255),
-            2
+            2,
         )
 
-        # Convert BGR → RGB (imageio expects RGB)
+        if alarm_active:
+            cv2.rectangle(frame, (10, 34), (280, 64), (0, 0, 255), -1)
+            cv2.putText(
+                frame,
+                "FIRE ALARM ACTIVE",
+                (16, 55),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 255),
+                2,
+            )
+
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.writer.append_data(rgb)
         self.frames_written += 1
-        print("[DEBUG] writer type:", type(self.writer))
+
+    def _build_static_with_exits(self, exits):
+        sig = tuple(exits)
+        if self._exits_signature == sig and self._static_with_exits is not None:
+            return
+
+        frame = self.base.copy()
+        for r, c in exits:
+            x = int(c * self.scale)
+            y = int(r * self.scale)
+            cv2.rectangle(frame, (x - 4, y - 4), (x + 4, y + 4), (0, 255, 0), -1)
+
+        self._static_with_exits = frame
+        self._exits_signature = sig
 
     def close(self):
         if self.writer is not None:
