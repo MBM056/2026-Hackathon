@@ -154,6 +154,7 @@
     <a class="brand" href="index.html">PYROPLAN</a>
     <div class="nav-actions">
       <a class="btn" href="demo.html">Demo</a>
+      <a class="btn" href="map-editor.html">Map Editor</a>
       <a class="btn btn-primary" href="simulation.html">Simulation</a>
     </div>
   </nav>
@@ -165,9 +166,9 @@
 
       <form id="simForm">
         <div class="full">
-          <label for="mapFile">Upload Floor Plan (PNG)</label>
-          <input id="mapFile" type="file" accept=".png,image/png" />
-          <p class="hint">Map rule: exits must be marked in red.</p>
+          <label for="mapFile">Upload Map (PNG or semantic JSON)</label>
+          <input id="mapFile" type="file" accept=".png,.json,image/png,application/json,text/plain" />
+          <p class="hint">PNG mode: exits must be marked in red. JSON mode: use map-editor export.</p>
         </div>
         <div>
           <label for="out">Output Filename</label>
@@ -241,7 +242,7 @@
       };
 
       if (!selectedFile) {
-        statusEl.textContent = "Please upload a PNG floor plan first.";
+        statusEl.textContent = "Please upload a PNG or semantic JSON map first.";
         return;
       }
 

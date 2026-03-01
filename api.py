@@ -146,10 +146,13 @@ async def run_upload(
 
         filename = (map_file.filename or "").lower()
         content_type = (map_file.content_type or "").lower()
-        if not filename.endswith(".png") and content_type != "image/png":
-            raise HTTPException(status_code=400, detail="Only PNG floor plans are supported.")
+        is_png = filename.endswith(".png") or content_type == "image/png"
+        is_json = filename.endswith(".json") or content_type in ("application/json", "text/json", "text/plain")
+        if not (is_png or is_json):
+            raise HTTPException(status_code=400, detail="Upload must be a PNG floor plan or semantic JSON map.")
 
-        tmp_map_path = os.path.join("/tmp", f"upload-map-{uuid4().hex}.png")
+        ext = ".json" if is_json else ".png"
+        tmp_map_path = os.path.join("/tmp", f"upload-map-{uuid4().hex}{ext}")
         with open(tmp_map_path, "wb") as dst:
             shutil.copyfileobj(map_file.file, dst)
 
