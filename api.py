@@ -3,6 +3,7 @@ from threading import Lock
 from typing import Optional, Union
 
 from datetime import timedelta
+import json
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
@@ -176,6 +177,127 @@ async def run_upload(
             bucket=bucket,
             uid=user_uid,
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            map_file.file.close()
+        except Exception:
+            pass
+        if tmp_map_path and os.path.exists(tmp_map_path):
+            try:
+                os.remove(tmp_map_path)
+            except Exception:
+                pass
+
+
+@app.post("/run-batch-upload")
+async def run_batch_upload(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+    map_file: UploadFile = File(...),
+    scenarios_json: str = Form(...),
+    out_prefix: str = Form("evac_batch"),
+    fire: Optional[str] = Form(None),
+    steps: int = Form(200),
+    people: int = Form(50),
+    grid: int = Form(140),
+    fps: int = Form(12),
+    render_every: int = Form(2),
+    alarm_at: Optional[float] = Form(None),
+    awareness_radius: int = Form(10),
+    bucket: Optional[str] = Form(None),
+):
+    tmp_map_path = None
+    try:
+        enforce_rate_limit(request)
+        user_uid = verify_auth_if_required(authorization)
+
+        filename = (map_file.filename or "").lower()
+        content_type = (map_file.content_type or "").lower()
+        is_png = filename.endswith(".png") or content_type == "image/png"
+        is_json = filename.endswith(".json") or content_type in ("application/json", "text/json", "text/plain")
+        if not (is_png or is_json):
+            raise HTTPException(status_code=400, detail="Upload must be a PNG floor plan or semantic JSON map.")
+
+        ext = ".json" if is_json else ".png"
+        tmp_map_path = os.path.join("/tmp", f"upload-map-{uuid4().hex}{ext}")
+        with open(tmp_map_path, "wb") as dst:
+            shutil.copyfileobj(map_file.file, dst)
+
+        max_upload_bytes = 10 * 1024 * 1024  # 10 MB
+        if os.path.getsize(tmp_map_path) > max_upload_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded map is too large (max 10MB).")
+
+        try:
+            scenarios = json.loads(scenarios_json)
+        except Exception:
+            raise HTTPException(status_code=400, detail="scenarios_json must be valid JSON.")
+        if not isinstance(scenarios, list) or len(scenarios) == 0:
+            raise HTTPException(status_code=400, detail="scenarios_json must be a non-empty JSON array.")
+        if len(scenarios) > 8:
+            raise HTTPException(status_code=400, detail="Maximum 8 scenarios per batch request.")
+
+        results = []
+        for i, s in enumerate(scenarios):
+            if not isinstance(s, dict):
+                raise HTTPException(status_code=400, detail=f"Scenario index {i} must be an object.")
+
+            scenario_name = str(s.get("name") or f"Scenario {i + 1}")
+            scenario_out = f"{out_prefix}_{i + 1}.mp4"
+            scenario_steps = int(s.get("steps", steps))
+            scenario_people = int(s.get("people", people))
+            scenario_fire = s.get("fire", fire)
+            scenario_alarm_at = s.get("alarm_at", alarm_at)
+            scenario_awareness = int(s.get("awareness_radius", awareness_radius))
+            scenario_grid = int(s.get("grid", grid))
+            scenario_fps = int(s.get("fps", fps))
+            scenario_render_every = int(s.get("render_every", render_every))
+
+            result = execute_run(
+                map_path=tmp_map_path,
+                out=scenario_out,
+                fire=scenario_fire,
+                fire_r=None,
+                fire_c=None,
+                steps=scenario_steps,
+                people=scenario_people,
+                grid=scenario_grid,
+                fps=scenario_fps,
+                render_every=scenario_render_every,
+                alarm_at=scenario_alarm_at,
+                awareness_radius=scenario_awareness,
+                bucket=bucket,
+                uid=user_uid,
+            )
+
+            storage = result.get("storage") or {}
+            results.append({
+                "name": scenario_name,
+                "death_count": result.get("death_count"),
+                "survival_rate": result.get("survival_rate"),
+                "completed_time_seconds": result.get("completed_time_seconds"),
+                "remaining_agents": result.get("remaining_agents"),
+                "video_url": storage.get("signed_url") or storage.get("https_url"),
+                "raw": result,
+            })
+
+        sorted_results = sorted(
+            results,
+            key=lambda r: (
+                -(float(r["survival_rate"]) if r["survival_rate"] is not None else -1.0),
+                int(r["death_count"]) if r["death_count"] is not None else 10**9,
+            ),
+        )
+        best = sorted_results[0] if sorted_results else None
+        return {
+            "ok": True,
+            "count": len(sorted_results),
+            "best_scenario": best["name"] if best else None,
+            "results": sorted_results,
+        }
     except HTTPException:
         raise
     except Exception as e:
