@@ -34,7 +34,7 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
                 fire_avoid_radius=2, avoid_smoke_cells=False,
                 smoke_alert_threshold=0.12, smoke_lethal_time_seconds=35.0,
                 smoke_harm_threshold=0.45, step_seconds=0.5,
-                return_stats=False):
+                return_stats=False, door_open_delay_steps=2):
     if doors is None:
         doors = set()
     if open_doors is None:
@@ -71,6 +71,10 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
             a["smoke_exposure_seconds"] = 0.0
         if "move_cooldown" not in a:
             a["move_cooldown"] = 0
+        if "door_wait_steps" not in a:
+            a["door_wait_steps"] = 0
+        if "door_target" not in a:
+            a["door_target"] = None
 
         # Smoke can be deadly over prolonged exposure:
         # if inside smoke for >= smoke_lethal_time_seconds, agent dies.
@@ -90,11 +94,32 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
         elif _hazard_visible(r, c, smoke_mask, fire_mask, H, W, awareness_radius):
             a["alerted"] = True
 
-        # Open adjacent doors
+        # Door interaction: agents slow briefly while opening nearby closed doors.
+        adjacent_closed_doors = []
         for dr, dc in NEIGHBORS_8:
             rr, cc = r + dr, c + dc
             if (rr, cc) in doors and (rr, cc) not in open_doors:
-                open_doors.add((rr, cc))
+                adjacent_closed_doors.append((rr, cc))
+
+        if adjacent_closed_doors:
+            target = min(adjacent_closed_doors)
+            if a["door_target"] != target:
+                a["door_target"] = target
+                a["door_wait_steps"] = 0
+            a["door_wait_steps"] += 1
+
+            if a["door_wait_steps"] >= max(1, int(door_open_delay_steps)):
+                for d in adjacent_closed_doors:
+                    open_doors.add(d)
+                a["door_wait_steps"] = 0
+                a["door_target"] = None
+            else:
+                occupied.add((r, c))
+                new_agents.append(a)
+                continue
+        else:
+            a["door_wait_steps"] = 0
+            a["door_target"] = None
 
         # Smoke slows movement while inside smoky air.
         if a["move_cooldown"] > 0:
