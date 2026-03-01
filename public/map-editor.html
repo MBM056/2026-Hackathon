@@ -78,7 +78,16 @@
 <body>
   <nav>
     <a class="brand" href="index.html">PYROPLAN</a>
-    <a class="btn" href="simulation.html">Simulation</a>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <a class="btn" href="index.html">Home</a>
+      <a class="btn" href="about.html">About</a>
+      <a class="btn" href="team.html">Team</a>
+      <a class="btn" href="demo.html">Demo</a>
+      <a class="btn btn-primary" href="map-editor.html">Map Editor</a>
+      <a class="btn" href="simulation.html">Simulation</a>
+      <a class="btn" href="how-to.html">How To</a>
+      <a class="btn" href="legal.html">Legal</a>
+    </div>
   </nav>
 
   <main>
@@ -96,7 +105,7 @@
         <label for="layer">Active Layer</label>
         <select id="layer">
           <option value="walkable">Walkable</option>
-          <option value="walls">Walls (erase walkable)</option>
+          <option value="walls">Walls (paint black)</option>
           <option value="exits">Exits (red)</option>
           <option value="doors">Doors (magenta)</option>
           <option value="stairs">Stairs (blue)</option>
@@ -118,7 +127,7 @@
         Workflow: load optional background, paint semantic layers, export JSON, then run simulation with that JSON file.
       </p>
       <p class="hint">
-        Required: mark at least one exit. Doors and stairs are optional.
+        Required: mark at least one exit. Doors and stairs are optional. Use the Walls layer to paint black blocked cells.
       </p>
     </section>
 
