@@ -33,7 +33,8 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
                 pre_alert_wander_prob=0.20, evac_exits=None,
                 fire_avoid_radius=2, avoid_smoke_cells=False,
                 smoke_alert_threshold=0.12, smoke_lethal_time_seconds=35.0,
-                smoke_harm_threshold=0.45, step_seconds=0.5):
+                smoke_harm_threshold=0.45, step_seconds=0.5,
+                return_stats=False):
     if doors is None:
         doors = set()
     if open_doors is None:
@@ -59,6 +60,8 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
     new_agents = []
     occupied = set()
     H, W = walkable.shape
+    deaths_this_step = 0
+    evacuated_this_step = 0
 
     for a in agents:
         r, c = a["pos"]
@@ -79,6 +82,7 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
             a["smoke_exposure_seconds"] = 0.0
         if a["smoke_exposure_seconds"] >= smoke_lethal_time_seconds:
             # Agent dies from prolonged smoke exposure.
+            deaths_this_step += 1
             continue
 
         if alarm_active:
@@ -138,70 +142,132 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
             new_agents.append(a)
             continue
 
-        # Reset exit if unreachable
-        if a.get("exit") is not None and dist_maps[a["exit"]][r, c] >= INF:
-            a["exit"] = None
+        # Continuously re-evaluate reachable exits so agents can adapt
+        # instead of committing to one greedy choice.
+        reachable = [e for e in planner_exits if dist_maps[e][r, c] < INF]
+        if not reachable:
+            new_agents.append(a)
+            continue
 
-        # Choose a reachable exit
-        if a.get("exit") is None:
-            reachable = [e for e in planner_exits if dist_maps[e][r, c] < INF]
-            if not reachable:
-                new_agents.append(a)
-                continue
-            a["exit"] = min(reachable, key=lambda e: dist_maps[e][r, c])
+        current_dist = min(dist_maps[e][r, c] for e in reachable)
 
-        dist = dist_maps[a["exit"]]
-        current_is_dangerous = _is_dangerous_cell(
-            r, c, smoke_mask, fire_mask, H, W,
-            fire_avoid_radius=fire_avoid_radius,
-            avoid_smoke_cells=avoid_smoke_cells,
-        )
-        if current_is_dangerous:
-            best = None
-            best_score = INF
+        # Distance-aware behavior tuning:
+        # - far from exits: be greedier (distance dominates)
+        # - mid-range: balanced risk-aware routing
+        # - very close: commit hard toward exit unless heavily blocked
+        if current_dist >= 35:
+            risk_scale = 0.35
+            dyn_fire_avoid_radius = max(0, fire_avoid_radius - 1)
+            stay_penalty = 1.3
+        elif current_dist <= 8:
+            risk_scale = 0.2
+            dyn_fire_avoid_radius = max(0, fire_avoid_radius - 2)
+            stay_penalty = 0.0
         else:
+            risk_scale = 1.0
+            dyn_fire_avoid_radius = fire_avoid_radius
+            stay_penalty = 0.2
+
+        # Keep a preferred exit for traceability.
+        a["exit"] = min(
+            reachable,
+            key=lambda e: dist_maps[e][r, c] + 0.4 * _fire_proximity_penalty(r, c, fire_mask, H, W),
+        )
+
+        # Very near an exit: prioritize aggressive progress toward any exit.
+        if current_dist <= 8:
             best = (r, c)
-            current_penalty = 0.0
-            if smoke_density is not None:
-                current_penalty = 10.0 * float(smoke_density[r, c])
-            best_score = dist[r, c] + current_penalty
-
-        # Evaluate neighbors
-        for dr, dc in NEIGHBORS_8:
-            nr, nc = r + dr, c + dc
-            if not (0 <= nr < H and 0 <= nc < W):
-                continue
-            if not walkable[nr, nc]:
-                continue
-            if blocked[nr, nc]:
-                continue
-            # No corner cutting when moving diagonally.
-            if dr != 0 and dc != 0:
-                if blocked[r + dr, c] or blocked[r, c + dc]:
+            best_key = (current_dist, _smoke_density_at(smoke_density, r, c), 1 if (r, c) in stairs else 0)
+            for dr, dc in NEIGHBORS_8:
+                nr, nc = r + dr, c + dc
+                if not (0 <= nr < H and 0 <= nc < W):
                     continue
-            if _is_dangerous_cell(
-                nr, nc, smoke_mask, fire_mask, H, W,
-                fire_avoid_radius=fire_avoid_radius,
+                if not walkable[nr, nc] or blocked[nr, nc]:
+                    continue
+                if dr != 0 and dc != 0:
+                    if blocked[r + dr, c] or blocked[r, c + dc]:
+                        continue
+
+                step_dist = min(dist_maps[e][nr, nc] for e in reachable)
+                if step_dist >= INF:
+                    continue
+
+                smoke_here = _smoke_density_at(smoke_density, nr, nc)
+                immensely_blocked = (
+                    smoke_here >= 0.80
+                    or _is_dangerous_cell(
+                        nr, nc, smoke_mask, fire_mask, H, W,
+                        fire_avoid_radius=max(3, fire_avoid_radius + 1),
+                        avoid_smoke_cells=False,
+                    )
+                )
+                if immensely_blocked and (nr, nc) not in evac_exits:
+                    continue
+
+                key = (step_dist, smoke_here, 1 if (nr, nc) in stairs else 0)
+                if key < best_key:
+                    best = (nr, nc)
+                    best_key = key
+        else:
+            current_is_dangerous = _is_dangerous_cell(
+                r, c, smoke_mask, fire_mask, H, W,
+                fire_avoid_radius=dyn_fire_avoid_radius,
                 avoid_smoke_cells=avoid_smoke_cells,
-            ):
-                continue
+            )
+            if current_is_dangerous:
+                best = None
+                best_score = INF
+            else:
+                best = (r, c)
+                current_penalty = 0.0
+                if smoke_density is not None:
+                    current_penalty += 10.0 * float(smoke_density[r, c])
+                current_penalty += _fire_proximity_penalty(r, c, fire_mask, H, W)
+                best_score = current_dist + risk_scale * current_penalty + stay_penalty
 
-            score = dist[nr, nc]
+            # Evaluate neighbors
+            for dr, dc in NEIGHBORS_8:
+                nr, nc = r + dr, c + dc
+                if not (0 <= nr < H and 0 <= nc < W):
+                    continue
+                if not walkable[nr, nc]:
+                    continue
+                if blocked[nr, nc]:
+                    continue
+                # No corner cutting when moving diagonally.
+                if dr != 0 and dc != 0:
+                    if blocked[r + dr, c] or blocked[r, c + dc]:
+                        continue
+                if _is_dangerous_cell(
+                    nr, nc, smoke_mask, fire_mask, H, W,
+                    fire_avoid_radius=dyn_fire_avoid_radius,
+                    avoid_smoke_cells=avoid_smoke_cells,
+                ):
+                    continue
 
-            # Stairs penalty
-            if (nr, nc) in stairs:
-                score += 6
+                step_dist = min(dist_maps[e][nr, nc] for e in reachable)
+                if step_dist >= INF:
+                    continue
+                score = step_dist
 
-            # Dense smoke is discouraged, but we still allow movement through it.
-            if smoke_density is not None:
-                score += 10.0 * float(smoke_density[nr, nc])
+                # Stairs penalty
+                if (nr, nc) in stairs:
+                    score += 6
 
-            if score < best_score:
-                best = (nr, nc)
-                best_score = score
+                # Dense smoke is discouraged, but we still allow movement through it.
+                if smoke_density is not None:
+                    score += risk_scale * (10.0 * float(smoke_density[nr, nc]))
+
+                # Penalty near active fire.
+                score += risk_scale * _fire_proximity_penalty(nr, nc, fire_mask, H, W)
+
+                if score < best_score:
+                    best = (nr, nc)
+                    best_score = score
 
         # Evacuated
         if best in evac_exits:
+            evacuated_this_step += 1
             continue
 
         # Collision avoidance
@@ -229,6 +295,11 @@ def step_agents(agents, walkable, blocked, exits, stairs, dist_maps,
                 a["pos"] = snapped
         cleaned.append(a)
 
+    if return_stats:
+        return cleaned, {
+            "deaths": deaths_this_step,
+            "evacuated": evacuated_this_step,
+        }
     return cleaned
 
 
@@ -259,6 +330,23 @@ def _is_dangerous_cell(r, c, smoke_mask, fire_mask, H, W, fire_avoid_radius, avo
     c0 = max(0, c - fire_avoid_radius)
     c1 = min(W, c + fire_avoid_radius + 1)
     return bool(np.any(fire_mask[r0:r1, c0:c1]))
+
+
+def _fire_proximity_penalty(r, c, fire_mask, H, W, max_radius=6):
+    if fire_mask is None:
+        return 0.0
+    if fire_mask[r, c]:
+        return 1000.0
+
+    # Higher penalty when fire exists in tighter neighborhoods.
+    for radius in range(1, max_radius + 1):
+        r0 = max(0, r - radius)
+        r1 = min(H, r + radius + 1)
+        c0 = max(0, c - radius)
+        c1 = min(W, c + radius + 1)
+        if np.any(fire_mask[r0:r1, c0:c1]):
+            return 7.0 * (max_radius - radius + 1)
+    return 0.0
 
 
 def _smoke_density_at(smoke_density, r, c):

@@ -34,7 +34,7 @@ class FireModel:
         smoke_emission: float = 1.6,      # added at burning cells per step
         smoke_decay: float = 0.985,       # higher persistence (closer to original behavior)
         smoke_diffusion: float = 0.86,    # 0..1; higher => expands faster
-        smoke_diffusion_passes: int = 6,  # faster spread per tick
+        smoke_diffusion_passes: int = 9,  # ~1.5x faster spread per tick (vs 6)
         smoke_front_gain: float = 0.96,   # stronger front propagation
         smoke_front_steps: int = 2,       # multi-step front push/tick
         smoke_threshold: float = 0.12,    # lower => more visible smoke
