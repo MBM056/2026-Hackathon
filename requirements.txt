@@ -9,3 +9,4 @@ fastapi>=0.115
 google-cloud-storage>=2.18
 firebase-admin>=6.5
 uvicorn>=0.34.0
+python-multipart>=0.0.9
