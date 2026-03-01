@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PyroPlan | Hackathon</title>
+  <title>PyroPlan | Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- Bungee font -->
@@ -59,10 +59,7 @@
       display: inline-block;
     }
 
-    .btn:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
     .btn-primary {
       border: none;
@@ -79,19 +76,22 @@
     }
 
     .card {
-      width: min(900px, 95vw);
+      width: min(1000px, 95vw);
       border-radius: 18px;
       background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.10);
       box-shadow: 0 20px 50px rgba(0,0,0,0.45);
-      padding: 60px 40px;
+      padding: 50px 40px;
       text-align: center;
     }
 
     h1 {
       font-family: 'Bungee', cursive;
       font-size: clamp(2rem, 4vw, 3rem);
-      margin-bottom: 25px;
+      line-height: 1.2;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+
       background: linear-gradient(90deg, #ff7a18, #ffb347);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -99,25 +99,26 @@
 
     .subtitle {
       opacity: 0.75;
-      margin-bottom: 30px;
-      max-width: 650px;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 0 auto 26px;
+      max-width: 720px;
       line-height: 1.5;
+      font-size: 1.05rem;
     }
 
-    .logo {
-      display: block;
-      margin: 20px auto 30px;
-      max-width: 500px;
+    .video-wrap {
+      width: min(900px, 92vw);
+      margin: 0 auto;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 22px 55px rgba(0,0,0,0.55);
+      background: rgba(0,0,0,0.25);
+    }
+
+    video {
       width: 100%;
-    }
-
-    .cta-center {
-      display: flex;
-      justify-content: center;
-      gap: 14px;
-      flex-wrap: wrap;
+      height: auto;
+      display: block;
     }
 
     footer {
@@ -135,24 +136,23 @@
   <nav>
     <a class="brand" href="index.html">PYROPLAN</a>
     <div class="nav-actions">
-      <a class="btn" href="team.html">Team</a>
-      <a class="btn" href="demo.html">Demo</a>
-      <a class="btn" href="legal.html">Legal</a>
-      <a class="btn btn-primary" href="software.html">Software</a>
+      <a class="btn btn-primary" href="index.html">Home</a>
     </div>
   </nav>
 
   <main class="hero">
     <div class="card">
-      <h1>Stay ahead of the flame.</h1>
-
+      <h1>Demo</h1>
       <p class="subtitle">
-        PyroPlan transforms architectural floor plans into intelligent fire spread simulations and evacuation modeling.
+        Watch PyroPlan run a fire spread simulation and generate evacuation insights from a floor plan.
       </p>
 
-      <img class="logo" src="images/pyroplan_logo.png" alt="PyroPlan Logo">
-
- 
+      <div class="video-wrap">
+        <video controls>
+          <source src="demo.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
     </div>
   </main>
 
