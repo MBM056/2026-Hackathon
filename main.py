@@ -80,6 +80,9 @@ def run_simulation(
 
     # Agents
     agents = spawn_agents(walkable, fire.blocked, exits, people)
+    initial_agents = len(agents)
+    total_deaths = 0
+    total_evacuated = 0
 
     # Renderer
     render_every = max(1, int(render_every))
@@ -105,6 +108,7 @@ def run_simulation(
 
     completed_t = None
     last_sim_time = 0.0
+    survival_rate = 0.0
     try:
         for t in range(steps):
             fire.update(t)
@@ -125,7 +129,7 @@ def run_simulation(
                     dist_maps[e] = compute_dist_to_exit_bfs(walkable, blocked, e)
 
             # Step agents (smoke-aware)
-            agents = step_agents(
+            agents, step_stats = step_agents(
                 agents,
                 walkable,
                 blocked,
@@ -140,7 +144,10 @@ def run_simulation(
                 awareness_radius=awareness_radius,
                 evac_exits=exits,
                 step_seconds=SECONDS_PER_STEP,
+                return_stats=True,
             )
+            total_deaths += int(step_stats.get("deaths", 0))
+            total_evacuated += int(step_stats.get("evacuated", 0))
 
             # If any door opened, update routing immediately
             if len(open_doors) != prev_open_doors_count:
@@ -166,6 +173,19 @@ def run_simulation(
                 print(f"Evacuation complete at t={t * SECONDS_PER_STEP:.1f}s")
                 completed_t = sim_time
                 break
+        survivors = max(0, initial_agents - total_deaths)
+        survival_rate = (100.0 * survivors / initial_agents) if initial_agents > 0 else 0.0
+        # Show death/survival only at the end as a final summary frame.
+        renderer.write_frame(
+            agents,
+            exits,
+            fire.burning,
+            time_seconds=last_sim_time,
+            smoke_mask=fire.smoke_field,
+            alarm_active=alarm_active,
+            death_count=total_deaths,
+            survival_rate=survival_rate,
+        )
     finally:
         renderer.close()
 
@@ -176,6 +196,10 @@ def run_simulation(
         "last_sim_time_seconds": last_sim_time,
         "alarm_at_seconds": alarm_at,
         "alarm_triggered": bool(alarm_announced),
+        "initial_agents": initial_agents,
+        "evacuated_count": int(total_evacuated),
+        "death_count": int(total_deaths),
+        "survival_rate": round(float(survival_rate), 2),
         "remaining_agents": len(agents),
     }
 

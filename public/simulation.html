@@ -281,7 +281,13 @@
           statusEl.textContent = "Run failed.";
           return;
         }
-        statusEl.textContent = "Simulation complete.";
+        const deaths = data && typeof data.death_count === "number" ? data.death_count : null;
+        const survival = data && typeof data.survival_rate === "number" ? data.survival_rate : null;
+        if (deaths !== null && survival !== null) {
+          statusEl.textContent = "Simulation complete. Deaths: " + deaths + " | Survival: " + survival.toFixed(1) + "%";
+        } else {
+          statusEl.textContent = "Simulation complete.";
+        }
 
         const signedUrl = data && data.storage && data.storage.signed_url;
         if (signedUrl) {

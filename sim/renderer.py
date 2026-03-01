@@ -58,7 +58,17 @@ class VideoRenderer:
         self.frames_written = 0
         print(f"[Renderer] Writing MP4 to {os.path.abspath(out_path)}")
 
-    def write_frame(self, agents, exits, fire_mask, time_seconds, smoke_mask=None, alarm_active=False):
+    def write_frame(
+        self,
+        agents,
+        exits,
+        fire_mask,
+        time_seconds,
+        smoke_mask=None,
+        alarm_active=False,
+        death_count=None,
+        survival_rate=None,
+    ):
         if self._static_with_exits is None:
             self._build_static_with_exits(exits)
         frame = self._static_with_exits.copy()
@@ -103,6 +113,26 @@ class VideoRenderer:
             (255, 255, 255),
             2,
         )
+        if death_count is not None:
+            cv2.putText(
+                frame,
+                f"Deaths: {int(death_count)}",
+                (10, 86),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (255, 255, 255),
+                2,
+            )
+        if survival_rate is not None:
+            cv2.putText(
+                frame,
+                f"Survival: {float(survival_rate):.1f}%",
+                (10, 108),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (255, 255, 255),
+                2,
+            )
 
         if alarm_active:
             cv2.rectangle(frame, (10, 34), (280, 64), (0, 0, 255), -1)
