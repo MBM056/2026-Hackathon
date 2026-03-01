@@ -10,6 +10,176 @@ from sim.renderer import VideoRenderer
 SECONDS_PER_STEP = 0.5
 
 
+def run_simulation(
+    map_path,
+    out_path,
+    *,
+    grid=140,
+    people=200,
+    steps=800,
+    fps=15,
+    render_every=1,
+    alarm_at=None,
+    awareness_radius=6,
+    route_recompute_every=20,
+    max_route_exits=24,
+    fire=None,
+    seed=None,
+    doors_cli=None,
+):
+    if doors_cli is None:
+        doors_cli = []
+    # Load map (your loader returns 5 values)
+    walkable, exits, stairs, doors_from_map, base_img = load_map_from_image(map_path, grid)
+    if len(exits) == 0:
+        raise SystemExit("No exits detected (check your exit color in the map).")
+
+    H, W = walkable.shape
+
+    # --- Fire start parsing (FIXED) ---
+    rng = np.random.default_rng(seed)
+
+    if fire is None:
+        fire_start = (H // 2, W // 2)
+
+    elif isinstance(fire, str) and fire.lower() == "random":
+        # Pick a random walkable cell (not on exits)
+        exits_set = set(exits)
+        rs, cs = np.where(walkable)
+        if len(rs) == 0:
+            raise SystemExit("No walkable cells found in map.")
+        for _ in range(5000):
+            idx = int(rng.integers(0, len(rs)))
+            r, c = int(rs[idx]), int(cs[idx])
+            if (r, c) not in exits_set:
+                fire_start = (r, c)
+                break
+        else:
+            fire_start = (H // 2, W // 2)
+
+    elif isinstance(fire, (list, tuple)) and len(fire) == 2:
+        fire_start = (int(fire[0]), int(fire[1]))
+
+    else:
+        raise SystemExit("Use --fire random OR --fire <row> <col>")
+
+    print("[FIRE] start:", fire_start)
+
+    # Init fire
+    fire = FireModel(walkable, fire_start)
+
+    # --- Doors (map + CLI) ---
+    doors = set(doors_from_map)
+    for r, c in doors_cli:
+        if 0 <= r < H and 0 <= c < W:
+            doors.add((int(r), int(c)))
+        else:
+            print(f"[WARN] Ignoring door out of bounds: {(r, c)}")
+
+    open_doors = set()
+
+    # Agents
+    agents = spawn_agents(walkable, fire.blocked, exits, people)
+
+    # Renderer
+    render_every = max(1, int(render_every))
+    renderer = VideoRenderer(out_path, fps, base_img, scale=4, exits=exits)
+
+    def build_blocked():
+        blocked = fire.blocked.copy()  # burning OR collapsed (per your new FireModel)
+        # Closed doors are blocked
+        for d in doors:
+            if d not in open_doors:
+                blocked[d] = True
+        return blocked
+
+    # Initial routing
+    blocked = build_blocked()
+    route_exits = pick_route_exits(exits, max(1, int(max_route_exits)))
+    print(f"[ROUTING] using {len(route_exits)} representative exits (from {len(exits)} total)")
+    dist_maps = {e: compute_dist_to_exit_bfs(walkable, blocked, e) for e in route_exits}
+    prev_open_doors_count = len(open_doors)
+    alarm_active = False
+    alarm_announced = False
+    route_recompute_every = max(1, int(route_recompute_every))
+
+    completed_t = None
+    last_sim_time = 0.0
+    try:
+        for t in range(steps):
+            fire.update(t)
+            sim_time = t * SECONDS_PER_STEP
+            last_sim_time = sim_time
+
+            if alarm_at is not None and sim_time >= alarm_at:
+                alarm_active = True
+            if alarm_active and not alarm_announced:
+                print(f"[ALARM] Fire alarm active at t={sim_time:.1f}s")
+                alarm_announced = True
+
+            blocked = build_blocked()
+
+            # Recompute routing periodically (tune frequency)
+            if t % route_recompute_every == 0:
+                for e in route_exits:
+                    dist_maps[e] = compute_dist_to_exit_bfs(walkable, blocked, e)
+
+            # Step agents (smoke-aware)
+            agents = step_agents(
+                agents,
+                walkable,
+                blocked,
+                exits,
+                stairs,
+                dist_maps,
+                doors,
+                open_doors,
+                fire_smoke=fire.smoke_field,
+                fire_mask=fire.burning,
+                alarm_active=alarm_active,
+                awareness_radius=awareness_radius,
+                evac_exits=exits,
+                step_seconds=SECONDS_PER_STEP,
+            )
+
+            # If any door opened, update routing immediately
+            if len(open_doors) != prev_open_doors_count:
+                prev_open_doors_count = len(open_doors)
+                blocked = build_blocked()
+                dist_maps = {e: compute_dist_to_exit_bfs(walkable, blocked, e) for e in route_exits}
+
+            # Render (NOTE: this call assumes your renderer signature is still:
+            # write_frame(agents, exits, fire_mask, time_seconds)
+            # If you updated renderer to support smoke overlay, pass smoke_mask=fire.smoke instead.
+            should_render = (t % render_every == 0)
+            if should_render or not agents:
+                renderer.write_frame(
+                    agents,
+                    exits,
+                    fire.burning,
+                    time_seconds=sim_time,
+                    smoke_mask=fire.smoke_field,
+                    alarm_active=alarm_active,
+                )
+
+            if not agents:
+                print(f"Evacuation complete at t={t * SECONDS_PER_STEP:.1f}s")
+                completed_t = sim_time
+                break
+    finally:
+        renderer.close()
+
+    print(f"Saved video to {out_path}")
+    return {
+        "out": out_path,
+        "completed_time_seconds": completed_t,
+        "last_sim_time_seconds": last_sim_time,
+        "alarm_at_seconds": alarm_at,
+        "alarm_triggered": bool(alarm_announced),
+        "remaining_agents": len(agents),
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--map", required=True)
@@ -48,8 +218,6 @@ def main():
         default=24,
         help="Max representative exits used for routing BFS (visual exits unchanged)."
     )
-
-    # UPDATED: supports "--fire random" OR "--fire <row> <col>" OR omit for center
     ap.add_argument(
         "--fire",
         nargs="+",
@@ -62,149 +230,32 @@ def main():
         default=None,
         help="Random seed (useful with --fire random for reproducible runs)"
     )
-
-    # Doors
     ap.add_argument("--door", nargs=2, type=int, action="append", default=[])
-
     args = ap.parse_args()
-
-    # Load map (your loader returns 5 values)
-    walkable, exits, stairs, doors_from_map, base_img = load_map_from_image(args.map, args.grid)
-    if len(exits) == 0:
-        raise SystemExit("❌ No exits detected (check your exit color in the map).")
-
-    H, W = walkable.shape
-
-    # --- Fire start parsing (FIXED) ---
-    rng = np.random.default_rng(args.seed)
-
+    fire = None
     if args.fire is None:
-        fire_start = (H // 2, W // 2)
-
+        fire = None
     elif len(args.fire) == 1 and str(args.fire[0]).lower() == "random":
-        # Pick a random walkable cell (not on exits)
-        exits_set = set(exits)
-        rs, cs = np.where(walkable)
-        if len(rs) == 0:
-            raise SystemExit("❌ No walkable cells found in map.")
-        for _ in range(5000):
-            idx = int(rng.integers(0, len(rs)))
-            r, c = int(rs[idx]), int(cs[idx])
-            if (r, c) not in exits_set:
-                fire_start = (r, c)
-                break
-        else:
-            fire_start = (H // 2, W // 2)
-
-    elif len(args.fire) == 2:
-        fire_start = (int(args.fire[0]), int(args.fire[1]))
-
+        fire = "random"
     else:
-        raise SystemExit("❌ Use --fire random OR --fire <row> <col>")
+        fire = (int(args.fire[0]), int(args.fire[1]))
 
-    print("[FIRE] start:", fire_start)
-
-    # Init fire
-    fire = FireModel(walkable, fire_start)
-
-    # --- Doors (map + CLI) ---
-    doors = set(doors_from_map)
-    for r, c in args.door:
-        if 0 <= r < H and 0 <= c < W:
-            doors.add((int(r), int(c)))
-        else:
-            print(f"⚠️ Ignoring door out of bounds: {(r, c)}")
-
-    open_doors = set()
-
-    # Agents
-    agents = spawn_agents(walkable, fire.blocked, exits, args.people)
-
-    # Renderer
-    render_every = max(1, int(args.render_every))
-    renderer = VideoRenderer(args.out, args.fps, base_img, scale=4, exits=exits)
-
-    def build_blocked():
-        blocked = fire.blocked.copy()  # burning OR collapsed (per your new FireModel)
-        # Closed doors are blocked
-        for d in doors:
-            if d not in open_doors:
-                blocked[d] = True
-        return blocked
-
-    # Initial routing
-    blocked = build_blocked()
-    route_exits = pick_route_exits(exits, max(1, int(args.max_route_exits)))
-    print(f"[ROUTING] using {len(route_exits)} representative exits (from {len(exits)} total)")
-    dist_maps = {e: compute_dist_to_exit_bfs(walkable, blocked, e) for e in route_exits}
-    prev_open_doors_count = len(open_doors)
-    alarm_active = False
-    alarm_announced = False
-    route_recompute_every = max(1, int(args.route_recompute_every))
-
-    try:
-        for t in range(args.steps):
-            fire.update(t)
-            sim_time = t * SECONDS_PER_STEP
-
-            if args.alarm_at is not None and sim_time >= args.alarm_at:
-                alarm_active = True
-            if alarm_active and not alarm_announced:
-                print(f"[ALARM] Fire alarm active at t={sim_time:.1f}s")
-                alarm_announced = True
-
-            blocked = build_blocked()
-
-            # Recompute routing periodically (tune frequency)
-            if t % route_recompute_every == 0:
-                for e in route_exits:
-                    dist_maps[e] = compute_dist_to_exit_bfs(walkable, blocked, e)
-
-            # Step agents (smoke-aware)
-            agents = step_agents(
-                agents,
-                walkable,
-                blocked,
-                exits,
-                stairs,
-                dist_maps,
-                doors,
-                open_doors,
-                fire_smoke=fire.smoke_field,
-                fire_mask=fire.burning,
-                alarm_active=alarm_active,
-                awareness_radius=args.awareness_radius,
-                evac_exits=exits,
-                step_seconds=SECONDS_PER_STEP,
-            )
-
-            # If any door opened, update routing immediately
-            if len(open_doors) != prev_open_doors_count:
-                prev_open_doors_count = len(open_doors)
-                blocked = build_blocked()
-                dist_maps = {e: compute_dist_to_exit_bfs(walkable, blocked, e) for e in route_exits}
-
-            # Render (NOTE: this call assumes your renderer signature is still:
-            # write_frame(agents, exits, fire_mask, time_seconds)
-            # If you updated renderer to support smoke overlay, pass smoke_mask=fire.smoke instead.
-            should_render = (t % render_every == 0)
-            if should_render or not agents:
-                renderer.write_frame(
-                    agents,
-                    exits,
-                    fire.burning,
-                    time_seconds=sim_time,
-                    smoke_mask=fire.smoke_field,
-                    alarm_active=alarm_active,
-                )
-
-            if not agents:
-                print(f"✅ Evacuation complete at t={t * SECONDS_PER_STEP:.1f}s")
-                break
-    finally:
-        renderer.close()
-
-    print(f"🎥 Saved video to {args.out}")
+    run_simulation(
+        args.map,
+        args.out,
+        grid=args.grid,
+        people=args.people,
+        steps=args.steps,
+        fps=args.fps,
+        render_every=args.render_every,
+        alarm_at=args.alarm_at,
+        awareness_radius=args.awareness_radius,
+        route_recompute_every=args.route_recompute_every,
+        max_route_exits=args.max_route_exits,
+        fire=fire,
+        seed=args.seed,
+        doors_cli=args.door,
+    )
 
 
 def pick_route_exits(exits, max_route_exits):
@@ -219,3 +270,4 @@ def pick_route_exits(exits, max_route_exits):
 
 if __name__ == "__main__":
     main()
+

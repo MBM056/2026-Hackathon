@@ -108,7 +108,7 @@ class VideoRenderer:
             cv2.rectangle(frame, (10, 34), (280, 64), (0, 0, 255), -1)
             cv2.putText(
                 frame,
-                "FIRE ALARM ACTIVE",
+                "FIRE ALARM ON",
                 (16, 55),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
