@@ -137,6 +137,33 @@
       font-size: 0.9rem;
       color: #ffd199;
     }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .results-table th, .results-table td {
+      border: 1px solid rgba(255,255,255,0.15);
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 0.92rem;
+    }
+    .results-table th {
+      background: rgba(255,255,255,0.08);
+    }
+    textarea {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 10px;
+      outline: none;
+      min-height: 120px;
+      resize: vertical;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.86rem;
+    }
     footer {
       padding: 18px;
       text-align: center;
@@ -204,15 +231,27 @@
           <label for="awarenessRadius">Awareness Radius</label>
           <input id="awarenessRadius" type="number" value="10" min="0" />
         </div>
+        <div class="full">
+          <label for="scenariosJson">Scenario Compare JSON (optional)</label>
+          <p class="hint"><strong>I CAN BE EDITED!</strong></p>
+          <textarea id="scenariosJson">[
+  {"name":"Early Alarm","alarm_at":5,"people":50,"awareness_radius":12,"fire":"random"},
+  {"name":"Default","alarm_at":10,"people":50,"awareness_radius":10,"fire":"random"},
+  {"name":"Late Alarm","alarm_at":20,"people":50,"awareness_radius":8,"fire":"random"}
+]</textarea>
+          <p class="hint">Run Scenario Compare uses this list and ranks scenarios by survival rate.</p>
+        </div>
       </form>
 
       <div class="actions">
         <button class="btn btn-primary" id="runBtn" type="button">Run Simulation</button>
+        <button class="btn" id="compareBtn" type="button">Run Scenario Compare</button>
       </div>
 
       <div id="statusBox" class="status-box">
         <div id="status" class="status-line">Ready.</div>
         <div id="timer" class="timer-line" style="display:none;">Rendering: 0.0s</div>
+        <div id="compareResults"></div>
       </div>
       <a id="videoLink" class="result-link" target="_blank" rel="noopener noreferrer" style="display:none;">Open Video</a>
     </section>
@@ -223,11 +262,14 @@
   <script>
     const API_URL = "https://evac-api-859942469608.us-east1.run.app/run";
     const API_UPLOAD_URL = API_URL.replace(/\/run$/, "/run-upload");
+    const API_BATCH_UPLOAD_URL = API_URL.replace(/\/run$/, "/run-batch-upload");
     const runBtn = document.getElementById("runBtn");
+    const compareBtn = document.getElementById("compareBtn");
     const statusEl = document.getElementById("status");
     const timerEl = document.getElementById("timer");
     const videoLink = document.getElementById("videoLink");
     const mapFileEl = document.getElementById("mapFile");
+    const compareResultsEl = document.getElementById("compareResults");
     let timerHandle = null;
 
     function parseFireValue(raw) {
@@ -238,6 +280,55 @@
         return [parts[0], parts[1]];
       }
       return "random";
+    }
+
+    function clearCompareResults() {
+      compareResultsEl.innerHTML = "";
+    }
+
+    function renderCompareResults(data) {
+      const rows = Array.isArray(data && data.results) ? data.results : [];
+      if (!rows.length) {
+        compareResultsEl.innerHTML = "<p class=\"hint\">No scenario results returned.</p>";
+        return;
+      }
+
+      const htmlRows = rows.map((r) => {
+        const timeVal = (typeof r.completed_time_seconds === "number")
+          ? r.completed_time_seconds.toFixed(1) + "s"
+          : "-";
+        const deaths = (typeof r.death_count === "number") ? r.death_count : "-";
+        const survival = (typeof r.survival_rate === "number") ? r.survival_rate.toFixed(1) + "%" : "-";
+        const link = r.video_url ? `<a class="result-link" href="${r.video_url}" target="_blank" rel="noopener noreferrer">Open Video</a>` : "-";
+        return `<tr><td>${r.name || "-"}</td><td>${survival}</td><td>${deaths}</td><td>${timeVal}</td><td>${link}</td></tr>`;
+      }).join("");
+
+      compareResultsEl.innerHTML = `
+        <p class="hint">Best scenario: <strong>${data.best_scenario || rows[0].name || "-"}</strong></p>
+        <table class="results-table">
+          <thead><tr><th>Scenario</th><th>Survival</th><th>Deaths</th><th>Evac Time</th><th>Video</th></tr></thead>
+          <tbody>${htmlRows}</tbody>
+        </table>
+      `;
+    }
+
+    function startTimer(message) {
+      statusEl.textContent = message;
+      timerEl.style.display = "block";
+      const startedAt = Date.now();
+      timerEl.textContent = "Rendering: 0.0s";
+      timerHandle = setInterval(() => {
+        const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
+        timerEl.textContent = "Rendering: " + secs + "s";
+      }, 100);
+    }
+
+    function stopTimer() {
+      if (timerHandle) {
+        clearInterval(timerHandle);
+        timerHandle = null;
+      }
+      timerEl.style.display = "none";
     }
 
     runBtn.addEventListener("click", async () => {
@@ -257,15 +348,10 @@
       }
 
       runBtn.disabled = true;
+      compareBtn.disabled = true;
       videoLink.style.display = "none";
-      statusEl.textContent = "Uploading map and running simulation...";
-      timerEl.style.display = "block";
-      const startedAt = Date.now();
-      timerEl.textContent = "Rendering: 0.0s";
-      timerHandle = setInterval(() => {
-        const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
-        timerEl.textContent = "Rendering: " + secs + "s";
-      }, 100);
+      clearCompareResults();
+      startTimer("Uploading map and running simulation...");
 
       try {
         const formData = new FormData();
@@ -310,12 +396,69 @@
       } catch (err) {
         statusEl.textContent = "Run failed: " + (err && err.message ? err.message : String(err));
       } finally {
-        if (timerHandle) {
-          clearInterval(timerHandle);
-          timerHandle = null;
-        }
-        timerEl.style.display = "none";
+        stopTimer();
         runBtn.disabled = false;
+        compareBtn.disabled = false;
+      }
+    });
+
+    compareBtn.addEventListener("click", async () => {
+      const selectedFile = mapFileEl.files && mapFileEl.files[0] ? mapFileEl.files[0] : null;
+      if (!selectedFile) {
+        statusEl.textContent = "Please upload a PNG or semantic JSON map first.";
+        return;
+      }
+
+      let scenarios;
+      try {
+        scenarios = JSON.parse(document.getElementById("scenariosJson").value);
+        if (!Array.isArray(scenarios) || scenarios.length === 0) {
+          throw new Error("Scenario JSON must be a non-empty array.");
+        }
+      } catch (e) {
+        statusEl.textContent = "Invalid Scenario Compare JSON.";
+        clearCompareResults();
+        return;
+      }
+
+      runBtn.disabled = true;
+      compareBtn.disabled = true;
+      videoLink.style.display = "none";
+      clearCompareResults();
+      startTimer("Uploading map and running scenario compare...");
+
+      try {
+        const outVal = document.getElementById("out").value.trim() || "evac_cloud.mp4";
+        const outPrefix = outVal.replace(/\.mp4$/i, "");
+        const fireVal = document.getElementById("fire").value.trim() || "random";
+
+        const formData = new FormData();
+        formData.append("map_file", selectedFile);
+        formData.append("out_prefix", outPrefix);
+        formData.append("fire", fireVal);
+        formData.append("steps", String(Number(document.getElementById("steps").value) || 200));
+        formData.append("people", String(Number(document.getElementById("people").value) || 50));
+        formData.append("grid", String(Number(document.getElementById("grid").value) || 140));
+        formData.append("fps", "12");
+        formData.append("render_every", "2");
+        formData.append("alarm_at", String(Number(document.getElementById("alarmAt").value) || 10));
+        formData.append("awareness_radius", String(Number(document.getElementById("awarenessRadius").value) || 10));
+        formData.append("scenarios_json", JSON.stringify(scenarios));
+
+        const res = await fetch(API_BATCH_UPLOAD_URL, { method: "POST", body: formData });
+        const data = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = "Scenario compare failed.";
+          return;
+        }
+        statusEl.textContent = "Scenario compare complete.";
+        renderCompareResults(data);
+      } catch (err) {
+        statusEl.textContent = "Scenario compare failed: " + (err && err.message ? err.message : String(err));
+      } finally {
+        stopTimer();
+        runBtn.disabled = false;
+        compareBtn.disabled = false;
       }
     });
   </script>
